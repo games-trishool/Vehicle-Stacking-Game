@@ -15,6 +15,8 @@ npm run dev
 
 Tap **Let’s play**, or press **Space**. A vehicle sweeps above the tower: tap the scene, click **Drop vehicle**, or press **Space** to release it. Centered landings earn perfect bonuses, coins, and consecutive multipliers, capped at 5×. Off-center vehicles can tip or topple the tower. **Escape** pauses the game. Changing tabs pauses automatically.
 
+The phone home screen keeps the live 3D preview, **Let’s play**, **Change vehicle**, and **Change place** on one screen. All screens fit the current viewport without scrolling. Use **Previous** and **Next** in the vehicle, place, garage, achievement, and leaderboard screens to reach additional choices. Page sizes adapt to screen height and orientation.
+
 ```bash
 npm run build       # strict TypeScript validation and production bundle
 npm test            # progression, purchases, persistence, reward rules
@@ -33,7 +35,7 @@ The browser tests use `/usr/bin/chromium` by default. Set `CHROMIUM_PATH` to a l
 - Synthesized sound effects, optional vibration, and reduced-motion settings.
 - Earned coins, three unlockable vehicles, six achievements, high scores, and local leaderboards. A new save receives 120 starter coins.
 - Saved choices, settings, purchases, achievements, scores, and coins in versioned local storage. Invalid or unavailable storage does not prevent play.
-- Responsive desktop and mobile UI, keyboard controls, accessible native dialogs, self-hosted fonts, and adaptive rendering quality.
+- Fixed viewport desktop and mobile UI with large touch controls, paged collections, keyboard controls, accessible native dialogs, self-hosted fonts, and adaptive rendering quality.
 - Android application project with a branded launcher/splash, hardware-accelerated WebView, portrait orientation, and bundled offline assets.
 
 ## Android
@@ -71,7 +73,7 @@ python3 scripts/build-android-cloud.py assembleDebug
 - `src/game.ts`: renderer, camera, physical tower, input-facing gameplay API, timing, landing detection, effects.
 - `src/vehicles.ts`: detailed procedural vehicle meshes and material-batched model cache.
 - `src/scenery.ts`: environment geometry, foliage and ground textures, lighting, atmospheric animation.
-- `src/main.ts` / `src/style.css`: responsive menus, HUD, dialogs, achievements, and progression integration.
+- `src/main.ts` / `src/style.css` / `src/layout.css`: menus, HUD, fixed viewport layouts, paged dialogs, achievements, and progression integration.
 - `src/store.mjs`: versioned saves, vehicle costs, achievement definitions, reward rules, personal rankings.
 - `src/audio.ts`: Web Audio synthesis triggered after player interaction.
 - `tests/`: unit coverage plus live browser integration checks.
