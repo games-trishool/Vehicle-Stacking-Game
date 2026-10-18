@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Stackline</string>
+    <string name="title_activity_main">Stackline</string>
+    <string name="package_name">com.trishool.stackline</string>
+    <string name="custom_url_scheme">com.trishool.stackline</string>
+</resources>
