@@ -8,6 +8,7 @@ button, select { touch-action: manipulation; }
 }
 .header { width: 100%; height: 68px; flex-shrink: 0; padding: 0 32px; gap: 20px; }
 .brand { font-size: 22px; }
+.brand-name { font-size: 21px; line-height: 1; letter-spacing: .2px; text-align: left; white-space: nowrap; }
 .brand-mark { width: 36px; height: 36px; border-radius: 10px; }
 .brand-mark .icon { width: 23px; height: 25px; }
 .navigation { gap: 25px; margin-left: 0; }
@@ -123,6 +124,7 @@ button, select { touch-action: manipulation; }
 .result-trophy { width: 52px; height: 52px; margin: 0 auto 12px; }
 .result-score strong { font-size: 60px; margin: 4px 0 16px; }
 .result-stats { padding: 16px 0; margin-bottom: 18px; }
+.result-actions { display: grid; gap: 12px; }
 
 @media (max-width: 1000px) {
   .navigation { display: none; }
@@ -137,6 +139,8 @@ button, select { touch-action: manipulation; }
 @media (max-width: 760px) {
   .header { height: 58px; padding: 0 18px; gap: 12px; }
   .brand { font-size: 20px; gap: 9px; }
+  .brand-name { font-size: 16px; line-height: 1.05; }
+  .brand-name > span { display: block; }
   .brand-mark { width: 33px; height: 33px; }
   .brand-dot { font-size: 8px; }
   .header-actions { gap: 7px; }
@@ -245,6 +249,7 @@ button, select { touch-action: manipulation; }
   .result-trophy { display: none; }
   .result-score strong { font-size: 48px; margin-bottom: 12px; }
   .result-stats { padding: 12px 0; margin-bottom: 12px; }
+  .compact-modal .modal-heading h2 { font-size: 25px; }
   .compact-modal .modal-heading { margin-bottom: 12px; }
 }
 
@@ -263,6 +268,7 @@ button, select { touch-action: manipulation; }
   .selection-text small { font-size: 9px; }
   .progress-card { min-height: 44px; height: 48px; padding-top: 7px; padding-bottom: 7px; }
   .footer { display: none; }
+  .compact-modal .modal-heading p { display: none; }
 }
 
 @media (orientation: landscape) and (max-height: 500px) {

@@ -28,6 +28,7 @@ async function expectFits(page:Page,selector:string){
 test('home, selectors, six live worlds and preferences persist without rendering errors',async({page})=>{
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
  await ready(page);await expect(page.locator('.play-button')).toBeVisible();await expect(page.locator('h1')).toHaveCount(0);
+ await expect(page).toHaveTitle(/Stack Vechiles/);await expect(page.locator('.brand-name')).toHaveText('Stack Vechiles');
  await page.locator('[data-action="vehicles"]').click();await choose(page,'truck');await expect(page.locator('[data-id="truck"]')).toHaveAttribute('aria-pressed','true');await page.locator('[data-action="close"]').click();
  await page.locator('.selection-row[data-action="worlds"]').click();
  for(const world of ['city','space','snow','desert','beach','forest']){
@@ -108,7 +109,10 @@ test('background music starts on play, pauses, and respects its saved setting in
  expect(await snapshot(page)).toMatchObject({musicEnabled:true,musicPlaying:false});
  await page.locator('.selection-row[data-action="worlds"]').click();await choose(page,'space');await page.locator('[data-action="close"]').click();
  await page.locator('.play-button').click();
- await expect.poll(async()=>{const s=await snapshot(page);return s.musicPlaying&&s.musicLevel>.0001;}).toBe(true);
+ await expect.poll(async()=>{const s=await snapshot(page);return s.musicPlaying&&s.musicLevel>.06;}).toBe(true);
+ await page.waitForTimeout(400);
+ const averageLevel=await page.evaluate(async()=>{let sum=0;for(let i=0;i<12;i++){sum+=(window as any).stackline.snapshot().musicLevel;await new Promise(resolve=>setTimeout(resolve,80));}return sum/12;});
+ expect(averageLevel).toBeGreaterThan(.06);
  await page.keyboard.press('Escape');
  await expect.poll(async()=>(await snapshot(page)).musicLevel).toBeLessThan(.00001);
  expect((await snapshot(page)).musicPlaying).toBe(false);
@@ -131,6 +135,25 @@ test('background music starts on play, pauses, and respects its saved setting in
  await expect.poll(async()=>{const s=await snapshot(page);return s.musicPlaying&&s.musicLevel>.0001;}).toBe(true);
  await page.keyboard.press('Escape');await page.getByRole('button',{name:'Back to home'}).click();
  await expect.poll(async()=>(await snapshot(page)).musicLevel).toBeLessThan(.00001);
+});
+test('a corner drop ends on first platform contact and the result buttons stay separated',async({page})=>{
+ await page.setViewportSize({width:480,height:640});
+ await page.addInitScript(()=>localStorage.setItem('stackline.progress.v1',JSON.stringify({version:1,selectedVehicle:'car',selectedWorld:'space',settings:{quality:'low',sound:false,music:false}})));
+ await ready(page);await page.locator('.play-button').click();
+ await page.waitForFunction(()=>{const s=(window as any).stackline.snapshot();if(s.held&&Math.abs(s.heldX-s.topX)>3.2){document.dispatchEvent(new KeyboardEvent('keydown',{code:'Space',bubbles:true}));return true;}return false;},{},{polling:'raf',timeout:45000});
+ await page.waitForFunction(()=>(window as any).stackline.snapshot().mode==='ended',{},{timeout:45000});
+ expect(await snapshot(page)).toMatchObject({groundContact:true,score:0,stacks:0,held:false,musicPlaying:false});
+ await expect(page.locator('.result-actions')).toBeVisible();
+ for(const size of [{width:480,height:640},{width:320,height:480},{width:390,height:844}]){
+  await page.setViewportSize(size);await expectFits(page,'#modal');
+  const gap=await page.locator('.result-actions').evaluate(el=>{const a=el.children[0].getBoundingClientRect(),b=el.children[1].getBoundingClientRect();return b.top-a.bottom;});
+  expect(gap).toBeGreaterThanOrEqual(12);
+ }
+ await page.screenshot({path:'test-results/game-over.png'});
+ await page.getByRole('button',{name:'Back to home'}).click();
+ expect(await snapshot(page)).toMatchObject({mode:'home',sceneVehicles:4});
+ await page.locator('.play-button').click();
+ expect(await snapshot(page)).toMatchObject({mode:'playing',groundContact:false,sceneVehicles:2});
 });
 test.describe('touch layouts',()=>{
 test.use({hasTouch:true});

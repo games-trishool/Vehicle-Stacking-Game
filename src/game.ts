@@ -5,6 +5,7 @@ import { createVehicle, SPECS, type VehicleId } from './vehicles';
 import { Scenery, type WorldId } from './scenery';
 import { landingReward } from './store.mjs';
 import { GameAudio } from './audio';
+import { watchSurfaceContacts } from './physics.mjs';
 
 export interface Landing {perfect:boolean;combo:number;score:number;stacks:number;height:number;coins:number;stability:number;}
 type Item={mesh:THREE.Group;body:CANNON.Body;id:VehicleId;height:number;landedY:number};
@@ -14,6 +15,7 @@ export class StackingGame {
   scenery:Scenery; audio=new GameAudio();mode:Mode='home';selectedVehicle='mixed';unlocked:VehicleId[]=['car','suv','truck'];worldId:WorldId='forest';
   items:Item[]=[];display=new THREE.Group();world?:CANNON.World;held?:THREE.Group;heldId:VehicleId='car';falling?:Item;guide?:THREE.Line;
   score=0;stacks=0;combo=0;coins=0;top=.49;stability=100;phase=0;elapsed=0;settled=0;contact=false;spawnTimer=0;slow=0;shake=0;lookY=4.2;quality='auto';reduceMotion=false;
+  groundContact=false;
   onLanding:(landing:Landing)=>void=()=>{};onEnd:(result:Landing)=>void=()=>{};onStability:(value:number)=>void=()=>{};
   private last=performance.now();private raf=0;private observer:ResizeObserver;private particles:{mesh:THREE.InstancedMesh;v:THREE.Vector3[];p:THREE.Vector3[];age:number}[]=[];
   private environmentTarget:THREE.WebGLRenderTarget;private targetLook=new THREE.Vector3();private frames=0;private frameTime=0;private mobile=matchMedia('(max-width: 760px)').matches;
@@ -46,7 +48,7 @@ export class StackingGame {
     if(this.guide){this.scene.remove(this.guide);this.guide.geometry.dispose();(this.guide.material as THREE.Material).dispose();}
     this.guide=undefined;
     for(const p of this.particles){this.scene.remove(p.mesh);p.mesh.geometry.dispose();(p.mesh.material as THREE.Material).dispose();}
-    this.particles=[];this.world=undefined;this.spawnTimer=0;this.slow=0;this.shake=0;
+    this.particles=[];this.world=undefined;this.spawnTimer=0;this.slow=0;this.shake=0;this.groundContact=false;
   }
   showHome(){
     this.clear();this.mode='home';let y=.49;
@@ -60,6 +62,9 @@ export class StackingGame {
     (this.world.solver as CANNON.GSSolver).iterations=16;this.world.defaultContactMaterial.friction=.65;this.world.defaultContactMaterial.restitution=.045;
     const floor=new CANNON.Body({mass:0,shape:new CANNON.Box(new CANNON.Vec3(4.1,.3,4.1)),position:new CANNON.Vec3(0,.19,0)});this.world.addBody(floor);
     const ground=new CANNON.Body({mass:0,shape:new CANNON.Plane()});ground.quaternion.setFromEuler(-Math.PI/2,0,0);ground.position.y=-.13;this.world.addBody(ground);
+    watchSurfaceContacts(this.world,[floor,ground],()=>{
+      if(this.mode==='playing'){this.groundContact=true;this.end();}
+    });
     // A base vehicle gives every run an approachable first landing.
     const base=this.makeItem(this.pick(),0,.49);base.body.type=CANNON.Body.STATIC;base.body.mass=0;base.body.updateMassProperties();this.world.addBody(base.body);this.items.push(base);this.scene.add(base.mesh);this.top=.49+base.height;this.spawn();this.onStability(100);
   }

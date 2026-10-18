@@ -1,8 +1,8 @@
-# Stackline
+# Stack Vechiles
 
 A complete, touch-friendly 3D vehicle stacking game built with Three.js, Cannon ES, TypeScript, and Capacitor. The home screen, garage, environments, progression, and gameplay work without an account or remote assets.
 
-![Stackline home screen](docs/home-desktop.png)
+![Stack Vechiles home screen](docs/home-desktop.png)
 
 ## Play and develop
 
@@ -15,9 +15,11 @@ npm run dev
 
 Tap **Let’s play**, or press **Space**. A vehicle sweeps above the tower: tap the scene, click **Drop vehicle**, or press **Space** to release it. Centered landings earn perfect bonuses, coins, and consecutive multipliers, capped at 5×. Off-center vehicles can tip or topple the tower. **Escape** pauses the game. Changing tabs pauses automatically.
 
+The fixed starting vehicle supports the tower on its platform. Any dropped or stacked vehicle touching the platform or the surrounding ground immediately ends the run, including contact by a wheel. A vehicle that slides down later is still monitored.
+
 The phone home screen keeps the live 3D preview, **Let’s play**, **Change vehicle**, and **Change place** on one screen. All screens fit the current viewport without scrolling. Use **Previous** and **Next** in the vehicle, place, garage, achievement, and leaderboard screens to reach additional choices. Page sizes adapt to screen height and orientation.
 
-Background music is on by default and starts when you choose **Let’s play**. It pauses with the game and fades out on game over or return home. In **Settings → Background music**, you can turn it off independently of sound effects; your preference is saved for future sessions.
+The upbeat 126 BPM arcade soundtrack is on by default and starts when you choose **Let’s play**. It combines drums, bass, and a bright melody, with normalized loudness for phone speakers and bounded peaks. It pauses with the game and fades out on game over or return home. In **Settings → Background music**, you can turn it off independently of sound effects; your preference is saved for future sessions.
 
 ```bash
 npm run build       # strict TypeScript validation and production bundle
@@ -73,6 +75,7 @@ python3 scripts/build-android-cloud.py assembleDebug
 ## Architecture
 
 - `src/game.ts`: renderer, camera, physical tower, input-facing gameplay API, timing, landing detection, effects.
+- `src/physics.mjs`: platform and ground collision monitoring for every dynamic vehicle, including previously stacked vehicles.
 - `src/vehicles.ts`: detailed procedural vehicle meshes and material-batched model cache.
 - `src/scenery.ts`: environment geometry, foliage and ground textures, lighting, atmospheric animation.
 - `src/main.ts` / `src/style.css` / `src/layout.css`: menus, HUD, fixed viewport layouts, paged dialogs, achievements, and progression integration.

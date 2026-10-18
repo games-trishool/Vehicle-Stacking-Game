@@ -9,7 +9,7 @@ export class GameAudio {
     try{
       if(!this.context){
         this.context=new AudioContext();this.master=this.context.createGain();this.master.gain.value=this.enabled?.24:0;this.master.connect(this.context.destination);
-        this.musicGain=this.context.createGain();this.musicGain.gain.value=.38;
+        this.musicGain=this.context.createGain();this.musicGain.gain.value=.9;
         this.musicAnalyser=this.context.createAnalyser();this.musicAnalyser.fftSize=256;
         this.musicGain.connect(this.musicAnalyser);this.musicAnalyser.connect(this.context.destination);
       }
@@ -63,31 +63,66 @@ export class GameAudio {
     return this.musicRendering;
   }
   private async composeMusic(){
-    // Render an original eight-bar ambient piece once, then loop one audio buffer.
-    // Chord tails wrap into the beginning so the loop has no silent seam.
-    const sampleRate=32000,beat=60/84,bar=beat*4,frames=Math.round(bar*8*sampleRate);
+    // A bright 126 BPM arcade score, rendered once for inexpensive mobile playback.
+    // Reverb-free instrument tails wrap into the start for a continuous beat.
+    const sampleRate=32000,beat=60/126,bar=beat*4,frames=Math.round(bar*8*sampleRate);
     const offline=new OfflineAudioContext(2,frames+sampleRate*4,sampleRate);
-    const chords=[[48,52,55,59],[45,48,52,55],[41,45,48,52],[43,48,50,55]];
+    const chords=[[48,52,55],[45,48,52],[41,45,48],[43,47,50]];
+    const melodies=[[72,76,79,76,81,79,76,74],[69,72,76,79,76,72,71,67],[69,72,77,76,72,69,72,76],[67,71,74,79,77,74,71,74]];
     const note=(midi:number,time:number,duration:number,volume:number,type:OscillatorType,pan=0)=>{
-      const oscillator=offline.createOscillator(),gain=offline.createGain(),stereo=offline.createStereoPanner();
+      const oscillator=offline.createOscillator(),gain=offline.createGain(),stereo=offline.createStereoPanner(),filter=offline.createBiquadFilter();
       oscillator.type=type;oscillator.frequency.value=440*2**((midi-69)/12);stereo.pan.value=pan;
-      gain.gain.setValueAtTime(0,time);gain.gain.linearRampToValueAtTime(volume,time+.025);
+      filter.type='lowpass';filter.frequency.value=type==='square'?2600:4200;filter.Q.value=.6;
+      gain.gain.setValueAtTime(0,time);gain.gain.linearRampToValueAtTime(volume,time+.006);
+      gain.gain.setValueAtTime(volume*.7,time+duration*.55);
       gain.gain.exponentialRampToValueAtTime(.0001,time+duration);
-      oscillator.connect(gain);gain.connect(stereo);stereo.connect(offline.destination);
+      oscillator.connect(filter);filter.connect(gain);gain.connect(stereo);stereo.connect(offline.destination);
       oscillator.start(time);oscillator.stop(time+duration+.01);
+    };
+    const noise=offline.createBuffer(1,Math.ceil(sampleRate*.22),sampleRate),noiseData=noise.getChannelData(0);
+    let seed=47;
+    for(let i=0;i<noiseData.length;i++){seed=(Math.imul(seed,1664525)+1013904223)|0;noiseData[i]=(seed>>>0)/2147483648-1;}
+    const percussion=(time:number,hat:boolean)=>{
+      const source=offline.createBufferSource(),gain=offline.createGain(),filter=offline.createBiquadFilter();
+      source.buffer=noise;filter.type='highpass';filter.frequency.value=hat?6500:1300;
+      const duration=hat?.055:.16;gain.gain.setValueAtTime(hat?.065:.21,time);gain.gain.exponentialRampToValueAtTime(.0001,time+duration);
+      source.connect(filter);filter.connect(gain);gain.connect(offline.destination);source.start(time);source.stop(time+duration);
+    };
+    const kick=(time:number)=>{
+      const oscillator=offline.createOscillator(),gain=offline.createGain();oscillator.frequency.setValueAtTime(155,time);
+      oscillator.frequency.exponentialRampToValueAtTime(48,time+.13);
+      gain.gain.setValueAtTime(.4,time);gain.gain.exponentialRampToValueAtTime(.2,time+.07);gain.gain.exponentialRampToValueAtTime(.0001,time+.24);
+      oscillator.connect(gain);gain.connect(offline.destination);oscillator.start(time);oscillator.stop(time+.25);
     };
     for(let i=0;i<8;i++){
       const chord=chords[i%4],time=i*bar;
-      chord.forEach((midi,j)=>note(midi,time,bar*1.15,.028,'triangle',(j-1.5)*.25));
-      note(chord[0]-12,time,beat*2,.095,'sine');note(chord[0]-12,time+beat*2,beat*1.8,.07,'sine');
-      [0,2,1,3,2,1,3,1].forEach((index,j)=>note(chord[index]+12,time+j*beat/2,beat*1.35,j%2?.075:.105,'sine',Math.sin(j)*.35));
-      if(i%2===1)note(chord[3]+24,time+beat*3,beat*1.7,.035,'sine',.25);
+      for(let j=0;j<4;j++){
+        const t=time+j*beat;kick(t);
+        note(chord[0],t,beat*.72,.15,'triangle');note(chord[0]+12,t+beat*.5,beat*.36,.08,'triangle');
+        chord.forEach((midi,k)=>note(midi+12,t+beat*.5,beat*.42,.055,'triangle',(k-1)*.3));
+        if(j%2===1){percussion(t,false);note(50,t,.12,.08,'triangle');}
+        percussion(t,true);percussion(t+beat*.5,true);
+      }
+      melodies[i%4].forEach((midi,j)=>note(midi+(i===7&&j>5?12:0),time+j*beat*.5,beat*.68,.11,'square',j%2?.12:-.12));
     }
     const rendered=await offline.startRendering(),buffer=offline.createBuffer(2,frames,sampleRate);
     for(let channel=0;channel<2;channel++){
       const source=rendered.getChannelData(channel),target=buffer.getChannelData(channel);
       target.set(source.subarray(0,frames));
       for(let i=frames;i<source.length;i++)target[i-frames]+=source[i];
+    }
+    // Raise average loudness for phone speakers, retaining headroom for effects.
+    let energy=0;
+    for(let channel=0;channel<2;channel++)for(const value of buffer.getChannelData(channel))energy+=value*value;
+    let gain=.34/Math.max(.001,Math.sqrt(energy/(frames*2)));
+    for(let pass=0;pass<3;pass++){
+      let outputEnergy=0;
+      for(let channel=0;channel<2;channel++)for(const value of buffer.getChannelData(channel)){const sample=.92*Math.tanh(value*gain);outputEnergy+=sample*sample;}
+      gain*=.3/Math.max(.001,Math.sqrt(outputEnergy/(frames*2)));
+    }
+    for(let channel=0;channel<2;channel++){
+      const samples=buffer.getChannelData(channel);
+      for(let i=0;i<samples.length;i++)samples[i]=.92*Math.tanh(samples[i]*gain);
     }
     return buffer;
   }

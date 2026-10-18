@@ -1,4 +1,4 @@
-Stackline — Third-party notices
+Stack Vechiles — Third-party notices
 
 Game meshes, textures, interface art, and audio synthesis are original source-generated content.
 
