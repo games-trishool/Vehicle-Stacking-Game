@@ -26,6 +26,7 @@ export class StackingGame {
     this.scenery=new Scenery(this.scene,'forest');this.scene.add(this.display);this.observer=new ResizeObserver(()=>this.resize());this.observer.observe(container);this.resize();this.showHome();this.animate();
   }
   get averageFps(){return Math.round(this.frames/Math.max(this.frameTime,.001));}
+  get vehicleCount(){let count=0;this.scene.traverse(object=>{if(object.userData.spec&&object.userData.id)count++;});return count;}
   resize(){const {width,height}=this.container.getBoundingClientRect();if(width<1||height<1)return;this.renderer.setSize(width,height);this.camera.aspect=width/height;this.camera.updateProjectionMatrix();}
   configure(settings:{quality:string;reduceMotion:boolean;sound:boolean}){
     this.quality=settings.quality;this.reduceMotion=settings.reduceMotion;this.audio.setEnabled(settings.sound);
@@ -34,7 +35,18 @@ export class StackingGame {
   changeWorld(id:WorldId){if(id===this.worldId)return;this.scenery.dispose();this.worldId=id;this.scenery=new Scenery(this.scene,id);this.configure({quality:this.quality,reduceMotion:this.reduceMotion,sound:this.audio.enabled});}
   setVehicles(selected:string,unlocked:string[]){this.selectedVehicle=selected;this.unlocked=unlocked.filter(id=>id!=='mixed') as VehicleId[];if(this.mode==='home')this.showHome();}
   private pick():VehicleId{if(this.selectedVehicle!=='mixed')return this.selectedVehicle as VehicleId;return this.unlocked[Math.floor(Math.random()*this.unlocked.length)]||'car';}
-  private clear(){for(const i of this.items)this.scene.remove(i.mesh);this.items=[];this.display.clear();if(this.held)this.scene.remove(this.held);if(this.guide){this.scene.remove(this.guide);this.guide.geometry.dispose();(this.guide.material as THREE.Material).dispose();}this.held=undefined;this.guide=undefined;this.falling=undefined;for(const p of this.particles){this.scene.remove(p.mesh);p.mesh.geometry.dispose();(p.mesh.material as THREE.Material).dispose();}this.particles=[];this.world=undefined;this.spawnTimer=0;this.slow=0;this.shake=0;}
+  private clear(){
+    for(const item of this.items)this.scene.remove(item.mesh);
+    // A missed drop stays outside items so its fall can animate after game over.
+    // Remove it before discarding the reference when starting another run or home.
+    if(this.falling)this.scene.remove(this.falling.mesh);
+    if(this.held)this.scene.remove(this.held);
+    this.items=[];this.falling=undefined;this.held=undefined;this.display.clear();
+    if(this.guide){this.scene.remove(this.guide);this.guide.geometry.dispose();(this.guide.material as THREE.Material).dispose();}
+    this.guide=undefined;
+    for(const p of this.particles){this.scene.remove(p.mesh);p.mesh.geometry.dispose();(p.mesh.material as THREE.Material).dispose();}
+    this.particles=[];this.world=undefined;this.spawnTimer=0;this.slow=0;this.shake=0;
+  }
   showHome(){
     this.clear();this.mode='home';let y=.49;
     const ids:VehicleId[]=this.selectedVehicle==='mixed'?['suv','truck','car','sports']:Array(4).fill(this.selectedVehicle);

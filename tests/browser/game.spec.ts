@@ -20,7 +20,7 @@ test('home, selectors, six live worlds and preferences persist without rendering
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  await page.screenshot({path:'test-results/mobile-home.png',fullPage:true});expect(errors).toEqual([]);
 });
-test('actual physics rewards centered drops, supports pause, and records a failed run',async({page})=>{
+test('actual physics rewards centered drops, records a failed run and replays cleanly',async({page})=>{
  test.setTimeout(300_000);await page.setViewportSize({width:480,height:640});
  await ready(page);await page.locator('[data-action="vehicles"]').click();await page.locator('[data-id="car"]').click();await page.locator('[data-action="close"]').click();await page.locator('.selection-row[data-action="worlds"]').click();await page.locator('[data-id="space"]').click();await page.locator('[data-action="close"]').click();await page.locator('.play-button').click();
  for(let i=1;i<=3;i++){
@@ -36,7 +36,13 @@ test('actual physics rewards centered drops, supports pause, and records a faile
  await page.locator('[data-action="resume"]').click();await expect(page.getByRole('dialog')).not.toBeVisible();
  await page.waitForFunction(()=>{const s=(window as any).stackline.snapshot();if(s.held&&Math.abs(s.heldX-s.topX)>3.1){document.dispatchEvent(new KeyboardEvent('keydown',{code:'Space',bubbles:true}));return true;}return false;},{},{timeout:65000,polling:'raf'});
  await page.waitForFunction(()=>(window as any).stackline.snapshot().mode==='ended',{},{timeout:60000});await expect(page.locator('.result-score')).toBeVisible();
- await page.locator('[data-action="home"]').last().click();await page.locator('.record-card').click();await expect(page.locator('.ranking-row')).toHaveCount(1);await expect(page.locator('.ranking-row')).toContainText('3');
+ expect((await snapshot(page)).falling).toBe(true);
+ await page.getByRole('button',{name:'One more climb'}).click();
+ expect(await snapshot(page)).toMatchObject({mode:'playing',score:0,stacks:0,stability:100,held:true,falling:false,sceneVehicles:2});
+ await expect(page.locator('#run-coins')).toHaveText('0');
+ await page.keyboard.press('Escape');await page.getByRole('button',{name:'Back to home'}).click();
+ expect(await snapshot(page)).toMatchObject({mode:'home',held:false,falling:false,sceneVehicles:4});
+ await page.locator('.record-card').click();await expect(page.locator('.ranking-row')).toHaveCount(2);await expect(page.locator('.ranking-row').first()).toContainText('3');
  await page.screenshot({path:'test-results/leaderboard.png'});
 });
 test('garage purchases use real saved coins and reject insufficient balance',async({page})=>{
@@ -46,6 +52,25 @@ test('garage purchases use real saved coins and reject insufficient balance',asy
  await page.evaluate(()=>{const key='stackline.progress.v1',s=JSON.parse(localStorage.getItem(key)!);s.coins=200;localStorage.setItem(key,JSON.stringify(s));});
  await page.reload();await page.waitForFunction(()=>!!(window as any).stackline);await page.locator('.navigation [data-action="garage"]').click();await page.locator('[data-id="sports"]').click();
  expect((await snapshot(page)).coins).toBe(50);expect((await snapshot(page)).vehicle).toBe('sports');await page.reload();await page.waitForFunction(()=>!!(window as any).stackline);expect((await snapshot(page)).vehicle).toBe('sports');expect((await snapshot(page)).coins).toBe(50);
+});
+test('pause restart and home remove a vehicle still falling in the previous run',async({page})=>{
+ await page.setViewportSize({width:480,height:640});
+ await page.addInitScript(()=>localStorage.setItem('stackline.progress.v1',JSON.stringify({version:1,selectedVehicle:'car',selectedWorld:'space',settings:{quality:'low',sound:false}})));
+ await ready(page);expect((await snapshot(page)).sceneVehicles).toBe(4);
+ await page.locator('.play-button').click();
+ const expectFreshRun=async()=>{
+  expect(await snapshot(page)).toMatchObject({mode:'playing',score:0,stacks:0,stability:100,held:true,falling:false,sceneVehicles:2});
+  await expect(page.locator('#run-coins')).toHaveText('0');
+ };
+ await expectFreshRun();
+ // Restart and return home while a vehicle is still falling, using the pause menu.
+ await page.locator('.drop-button').click();expect((await snapshot(page)).falling).toBe(true);
+ await page.keyboard.press('Escape');await page.getByRole('button',{name:'Start a new run'}).click();await expectFreshRun();
+ await page.locator('.drop-button').click();await page.keyboard.press('Escape');
+ await page.getByRole('button',{name:'Back to home'}).click();
+ expect(await snapshot(page)).toMatchObject({mode:'home',held:false,falling:false,sceneVehicles:4});
+ await page.screenshot({path:'test-results/clean-home-after-restart.png'});
+ await page.locator('.play-button').click();await expectFreshRun();
 });
 test('keyboard focus activates menu and gameplay buttons correctly',async({page})=>{
  await page.setViewportSize({width:480,height:640});await ready(page);
