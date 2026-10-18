@@ -47,6 +47,8 @@ The browser tests use `/usr/bin/chromium` by default. Set `CHROMIUM_PATH` to a l
 
 The native project uses application ID `com.trishool.stackline`, Capacitor 7, Java 21, and Android API 35. All game assets are packaged locally; gameplay does not depend on CDN access.
 
+A prebuilt **unsigned release AAB** and local signing instructions are included in [releases/README.md](releases/README.md). Run `node scripts/sign-aab.mjs` to sign it on your PC using an existing upload key or a newly created key. Private keys stay on your PC. Check Play Console's current target API requirement before submission.
+
 ```bash
 npm run android:sync
 npm run android:open

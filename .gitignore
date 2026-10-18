@@ -15,3 +15,12 @@ Stackline-VSCode*.zip
 Stackline-Source*.zip
 Stackline-Installer.cjs
 Stackline-Installer.txt
+
+# Private Android signing files and locally signed bundles
+*.jks
+*.keystore
+*.p12
+*.pfx
+keystore.properties
+android/key.properties
+releases/*-signed.aab
