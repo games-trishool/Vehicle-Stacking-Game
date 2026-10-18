@@ -23,7 +23,7 @@ const app=document.querySelector<HTMLDivElement>('#app')!;
 app.innerHTML=`
  <div class="home-shell" id="home-shell">
   <header class="header">
-    <button class="brand" data-action="home" aria-label="Stack Vechiles home"><span class="brand-mark">${icon('layers')}</span><span class="brand-name">Stack <span>Vechiles</span></span></button>
+    <button class="brand" data-action="home" aria-label="Stack Vechiles home"><span class="brand-mark"><img src="/icons/icon-192.png" alt="" /></span><span class="brand-name">Stack <span>Vechiles</span></span></button>
     <nav class="navigation" aria-label="Main navigation"><button class="nav-link active" data-action="home">The game</button><button class="nav-link" data-action="worlds">Explore worlds</button><button class="nav-link" data-action="garage">Garage</button><button class="nav-link" data-action="leaderboard">Leaderboard</button></nav>
     <div class="header-actions"><button class="coin-balance" data-action="garage" aria-label="Coins and garage">${icon('coin')}<span id="coin-balance">${state.coins}</span></button><span class="header-divider"></span><button class="icon-button header-help" data-action="howto" aria-label="How to play">${icon('info')}</button><button class="icon-button" data-action="settings" aria-label="Settings">${icon('settings')}</button></div>
   </header>
@@ -102,16 +102,17 @@ function home(){closeDialog(false);document.body.classList.remove('in-game');$('
 function modalHeader(eyebrow:string,title:string,copy:string){return `<div class="modal-heading"><div><span class="eyebrow">${eyebrow}</span><h2>${title}</h2><p>${copy}</p></div><button class="icon-button close-modal" data-action="close" aria-label="Close dialog">${icon('close')}</button></div>`;}
 function openDialog(kind:string){
  const page=kind===dialogKind?dialogPage:0;
+ const scrollTop=kind===dialogKind?($('modal-content').querySelector('.selection-scroll')?.scrollTop||0):0;
  dialogKind=kind;let content='';
  if(kind==='vehicles'||kind==='garage'){
    const isGarage=kind==='garage';content=modalHeader(isGarage?'GOOD THINGS COME WITH WHEELS':'YOUR TOWER. YOUR WAY.',isGarage?'The garage.':'Pick your ride.',isGarage?'Earn coins with every landing. Find your next favorite.':'Stick with a favorite, or keep the climb surprising.');
    content+=`<div class="modal-meta"><span>${state.unlocked.length-1} / 6 vehicles unlocked</span><span class="coin-balance">${icon('coin')} ${state.coins} coins</span></div><div class="vehicle-grid">`;
    for(const v of VEHICLES){const owned=state.unlocked.includes(v.id),selected=state.selectedVehicle===v.id;content+=`<button class="vehicle-card ${selected?'selected':''} ${!owned?'locked':''} ${v.id==='mixed'?'mixed-card':''}" data-action="select-vehicle" data-id="${v.id}" aria-pressed="${selected}"><div class="vehicle-card-top"><span>${v.label}</span>${selected?`<span class="selected-check">${icon('check')}</span>`:!owned?icon('lock'):''}</div><div class="vehicle-render">${v.id==='mixed'?'<span class="mixed-spark spark-one">✦</span><span class="mixed-spark spark-two">✦</span>':''}<img src="${thumbs[v.id]||''}" alt="${v.name} 3D model" /></div><div class="vehicle-details"><h3>${v.name}</h3><p>${v.subtitle}</p><span class="vehicle-status">${selected?'SELECTED':owned?'READY TO STACK':`${icon('coin')} ${v.cost} · UNLOCK`}</span></div></button>`;}
-   content+='</div><p class="modal-footnote">Mixed mode chooses randomly from your unlocked vehicles. Your choice is saved automatically.</p>';
+   content+='</div><p class="modal-footnote">Swipe up to explore every vehicle. Mixed mode chooses from your unlocked vehicles. Your choice is saved automatically.</p>';
  }
  if(kind==='worlds'){
    content=modalHeader('A CHANGE OF SCENERY','Find your happy place.','Six worlds to get lost in. One tower to get right.');content+='<div class="world-grid">';
-   for(const w of WORLDS){const selected=state.selectedWorld===w.id;content+=`<button class="world-card ${selected?'selected':''}" data-action="select-world" data-id="${w.id}" aria-pressed="${selected}"><div class="world-art">${worldArt(w.id)}<span>${w.tag}</span>${selected?`<i>${icon('check')}</i>`:''}</div><div><h3>${w.name}</h3><p>${w.subtitle}</p></div></button>`;}content+='</div><p class="modal-footnote">Every world is yours to explore. Your selected background is saved for your next climb.</p>';
+   for(const w of WORLDS){const selected=state.selectedWorld===w.id;content+=`<button class="world-card ${selected?'selected':''}" data-action="select-world" data-id="${w.id}" aria-pressed="${selected}"><div class="world-art">${worldArt(w.id)}<span>${w.tag}</span>${selected?`<i>${icon('check')}</i>`:''}</div><div><h3>${w.name}</h3><p>${w.subtitle}</p></div></button>`;}content+='</div><p class="modal-footnote">Swipe up to explore all six places. Your selected background is saved for your next climb.</p>';
  }
  if(kind==='settings'){
    content=modalHeader('MAKE YOURSELF AT HOME','Your kind of play.','The little things that make every climb feel right.');
@@ -134,6 +135,7 @@ function openDialog(kind:string){
  }
  if(kind==='result')content=resultContent();
  $('modal-content').innerHTML=content;modal.className=`modal ${kind==='pause'||kind==='result'?'compact-modal':''}`;modal.dataset.screen=kind;layoutDialog(page);if(!modal.open)modal.showModal();
+ const list=$('modal-content').querySelector('.selection-scroll');if(list)list.scrollTop=scrollTop;
 }
 function layoutDialog(page=0){
  const focusAction=(document.activeElement as HTMLElement|null)?.dataset.action;
@@ -141,6 +143,11 @@ function layoutDialog(page=0){
  const grid=content.querySelector<HTMLElement>('.vehicle-grid,.world-grid,.achievements-grid,.ranking-table');
  if(!grid)return;
  const cards=Array.from(grid.querySelectorAll<HTMLElement>('.vehicle-card,.world-card,.achievement-card,.ranking-row'));
+ if(grid.matches('.vehicle-grid,.world-grid')){
+   grid.classList.add('selection-scroll');grid.style.removeProperty('grid-template-rows');
+   grid.tabIndex=0;grid.setAttribute('role','region');grid.setAttribute('aria-label',grid.classList.contains('vehicle-grid')?'Vehicles':'Places');
+   cards.forEach(card=>card.hidden=false);return;
+ }
  const short=innerHeight<650,columns=innerWidth<=760?2:3;
  const achievements=grid.classList.contains('achievements-grid'),ranking=grid.classList.contains('ranking-table');
  const count=ranking?(short?2:5):achievements?(short?2:innerWidth<=760?3:6):columns*(short?1:2);

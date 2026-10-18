@@ -17,7 +17,7 @@ Tap **Let’s play**, or press **Space**. A vehicle sweeps above the tower: tap 
 
 The fixed starting vehicle supports the tower on its platform. Any dropped or stacked vehicle touching the platform or the surrounding ground immediately ends the run, including contact by a wheel. A vehicle that slides down later is still monitored.
 
-The phone home screen keeps the live 3D preview, **Let’s play**, **Change vehicle**, and **Change place** on one screen. All screens fit the current viewport without scrolling. Use **Previous** and **Next** in the vehicle, place, garage, achievement, and leaderboard screens to reach additional choices. Page sizes adapt to screen height and orientation.
+The phone home screen keeps the live 3D preview, **Let’s play**, **Change vehicle**, and **Change place** on one fixed screen. Swipe vertically inside **Change vehicle**, **Change place**, or **Garage** to see every choice; their headings and close buttons stay in place. Selecting a vehicle or place preserves your position in the list. Achievements and the leaderboard use **Previous** and **Next**, with page sizes that adapt to screen height and orientation.
 
 The upbeat 126 BPM arcade soundtrack is on by default and starts when you choose **Let’s play**. It combines drums, bass, and a bright melody, with normalized loudness for phone speakers and bounded peaks. It pauses with the game and fades out on game over or return home. In **Settings → Background music**, you can turn it off independently of sound effects; your preference is saved for future sessions.
 
@@ -39,8 +39,9 @@ The browser tests use `/usr/bin/chromium` by default. Set `CHROMIUM_PATH` to a l
 - Synthesized sound effects, an original looping background score with independent music and effects controls, optional vibration, and reduced-motion settings. The score is rendered once into a reusable audio buffer to avoid ongoing music scheduling on the game thread.
 - Earned coins, three unlockable vehicles, six achievements, high scores, and local leaderboards. A new save receives 120 starter coins.
 - Saved choices, settings, purchases, achievements, scores, and coins in versioned local storage. Invalid or unavailable storage does not prevent play.
-- Fixed viewport desktop and mobile UI with large touch controls, paged collections, keyboard controls, accessible native dialogs, self-hosted fonts, and adaptive rendering quality.
-- Android application project with a branded launcher/splash, hardware-accelerated WebView, portrait orientation, and bundled offline assets.
+- A polished wooden platform with plank grain, a warm rim, and fine brass trim in every world.
+- Fixed viewport desktop and mobile UI with large touch controls, vertically scrolling vehicle/place lists, keyboard controls, accessible native dialogs, self-hosted fonts, and adaptive rendering quality.
+- Android application project with a picture launcher/splash adapted from the supplied stacked-vehicles image, hardware-accelerated WebView, portrait orientation, and bundled offline assets. The same picture appears in the home logo, browser icon, and home-screen shortcut.
 
 ## Android
 
@@ -72,13 +73,15 @@ npm run android:sync
 python3 scripts/build-android-cloud.py assembleDebug
 ```
 
+The master app icon is `public/icons/icon-512.png`. To regenerate its browser, Apple touch, and Android density variants after replacing it, run `bash scripts/generate-icons.sh` with ImageMagick 7 installed, then sync Android again.
+
 ## Architecture
 
 - `src/game.ts`: renderer, camera, physical tower, input-facing gameplay API, timing, landing detection, effects.
 - `src/physics.mjs`: platform and ground collision monitoring for every dynamic vehicle, including previously stacked vehicles.
 - `src/vehicles.ts`: detailed procedural vehicle meshes and material-batched model cache.
 - `src/scenery.ts`: environment geometry, foliage and ground textures, lighting, atmospheric animation.
-- `src/main.ts` / `src/style.css` / `src/layout.css`: menus, HUD, fixed viewport layouts, paged dialogs, achievements, and progression integration.
+- `src/main.ts` / `src/style.css` / `src/layout.css`: menus, HUD, fixed viewport layouts, scrollable selection dialogs, achievements, and progression integration.
 - `src/store.mjs`: versioned saves, vehicle costs, achievement definitions, reward rules, personal rankings.
 - `src/audio.ts`: synthesized effects and an original looping background score, triggered after player interaction with independent controls and pause/resume handling.
 - `tests/`: unit coverage plus live browser integration checks.
@@ -91,4 +94,4 @@ Rankings are local to the device. Global authenticated leaderboards, cloud saves
 
 Before Google Play release, choose the final package identity, create a private signing key, configure release signing, review current target API requirements, prepare the privacy/Data Safety declarations and store artwork, and validate frame times, memory, audio, vibration, pause/resume, and WebView compatibility on physical Android devices. The cloud browser checks do not establish device performance or store readiness. Never commit signing keys or credentials.
 
-Bundled license texts are included in `public/THIRD_PARTY_NOTICES.txt` and in the Android/web assets. Fonts are distributed through the Fontsource packages under their bundled font licenses. Three.js and Cannon ES use the MIT license; Capacitor uses MIT. Game meshes, textures, interface art, and sound synthesis are created in source and need no remote asset download.
+Bundled license texts are included in `public/THIRD_PARTY_NOTICES.txt` and in the Android/web assets. Fonts are distributed through the Fontsource packages under their bundled font licenses. Three.js and Cannon ES use the MIT license; Capacitor uses MIT. Game meshes, procedural textures, and sound synthesis are created in source. The picture icon is adapted from the supplied stacked-vehicles image and bundled locally; no game asset needs a remote download at runtime.

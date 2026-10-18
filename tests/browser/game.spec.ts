@@ -19,7 +19,8 @@ async function expectFits(page:Page,selector:string){
   }
   for(const el of root.querySelectorAll<HTMLElement>('button,select,h1,h2,h3,p,strong,small')){
    const r=el.getBoundingClientRect();if(!el.getClientRects().length||!r.width||!r.height)continue;
-   if(r.left<Math.max(0,bounds.left)-1||r.right>Math.min(innerWidth,bounds.right)+1||r.top<Math.max(0,bounds.top)-1||r.bottom>Math.min(innerHeight,bounds.bottom)+1)issues.push(`${el.tagName} ${el.textContent?.trim().slice(0,35)} is clipped`);
+   const scrolling=!!el.closest('.selection-scroll');
+   if(r.left<Math.max(0,bounds.left)-1||r.right>Math.min(innerWidth,bounds.right)+1||(!scrolling&&(r.top<Math.max(0,bounds.top)-1||r.bottom>Math.min(innerHeight,bounds.bottom)+1)))issues.push(`${el.tagName} ${el.textContent?.trim().slice(0,35)} is clipped`);
   }
   return issues;
  },selector);
@@ -29,6 +30,9 @@ test('home, selectors, six live worlds and preferences persist without rendering
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
  await ready(page);await expect(page.locator('.play-button')).toBeVisible();await expect(page.locator('h1')).toHaveCount(0);
  await expect(page).toHaveTitle(/Stack Vechiles/);await expect(page.locator('.brand-name')).toHaveText('Stack Vechiles');
+ expect(await page.locator('.brand-mark img').evaluate((img:HTMLImageElement)=>img.complete&&img.naturalWidth===192)).toBe(true);
+ const manifest=await (await page.request.get('/manifest.webmanifest')).json();expect(manifest.name).toBe('Stack Vechiles');
+ for(const entry of manifest.icons)expect((await page.request.get(entry.src)).status()).toBe(200);
  await page.locator('[data-action="vehicles"]').click();await choose(page,'truck');await expect(page.locator('[data-id="truck"]')).toHaveAttribute('aria-pressed','true');await page.locator('[data-action="close"]').click();
  await page.locator('.selection-row[data-action="worlds"]').click();
  for(const world of ['city','space','snow','desert','beach','forest']){
@@ -157,8 +161,9 @@ test('a corner drop ends on first platform contact and the result buttons stay s
 });
 test.describe('touch layouts',()=>{
 test.use({hasTouch:true});
-test('mobile screens fit without scrolling and every collection is reachable by page buttons',async({page})=>{
- test.setTimeout(300_000);
+test('home stays fixed, vehicle and place lists swipe vertically, and every collection is reachable',async({page})=>{
+ test.setTimeout(360_000);
+ const touchSession=await page.context().newCDPSession(page);
  await page.addInitScript(()=>localStorage.setItem('stackline.progress.v1',JSON.stringify({version:1,selectedWorld:'space',settings:{quality:'low',sound:false},runs:Array.from({length:10},(_,i)=>({score:1000-i*10,stacks:10-i,height:20-i,world:'forest',date:'2026-10-18T00:00:00Z'}))})));
  await ready(page);
  for(const size of [{width:320,height:480},{width:320,height:568},{width:360,height:640},{width:390,height:844},{width:412,height:915},{width:844,height:390},{width:1366,height:768}]){
@@ -177,7 +182,32 @@ test('mobile screens fit without scrolling and every collection is reachable by 
    if(action==='vehicles'&&size.width===390)await page.screenshot({path:'test-results/mobile-vehicle-pages.png'});
    if(action==='garage'&&size.width===390)await page.screenshot({path:'test-results/mobile-garage.png'});
    if(action==='settings'&&size.width===390)await page.screenshot({path:'test-results/mobile-settings.png'});
-   if(cardSelector){
+   if(['vehicles','worlds','garage'].includes(action)){
+    const list=page.locator('.selection-scroll'),cards=list.locator(cardSelector),heading=page.locator('.modal-heading');
+    await expect(cards).toHaveCount(total);await expect(page.locator('.dialog-pager')).toHaveCount(0);
+    const headingBefore=await heading.boundingBox(),box=(await list.boundingBox())!;
+    expect(await list.evaluate(el=>el.scrollHeight>el.clientHeight)).toBe(true);
+    // Real touch gestures scroll the list while the document and header stay fixed.
+    for(let n=0;n<12;n++){
+     if(await list.evaluate(el=>el.scrollTop+el.clientHeight>=el.scrollHeight-2))break;
+     const x=box.x+box.width*.55,start=box.y+box.height*.85,end=box.y+box.height*.2;
+     await touchSession.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x,y:start}]});
+     for(let step=1;step<=8;step++){
+      await touchSession.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x,y:start+(end-start)*step/8}]});
+      await page.waitForTimeout(20);
+     }
+     await touchSession.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+    }
+    await expect.poll(()=>list.evaluate(el=>el.scrollTop+el.clientHeight>=el.scrollHeight-2)).toBe(true);
+    const scrolled=await list.evaluate(el=>el.scrollTop);expect(scrolled).toBeGreaterThan(0);
+    expect(await heading.boundingBox()).toEqual(headingBefore);expect(await page.evaluate(()=>scrollY)).toBe(0);
+    if(action==='worlds'){
+     await cards.last().tap();await expect(cards.last()).toHaveAttribute('aria-pressed','true');
+     expect((await snapshot(page)).world).toBe('beach');
+     expect(await list.evaluate(el=>el.scrollTop)).toBeCloseTo(scrolled,0);
+    }
+    await expectFits(page,'#modal');
+   }else if(cardSelector){
     let seen=0;
     for(let n=0;n<5;n++){
      await expectFits(page,'#modal');seen+=await page.locator(`#modal ${cardSelector}:visible`).count();
