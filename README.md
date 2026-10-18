@@ -17,6 +17,8 @@ Tap **Let’s play**, or press **Space**. A vehicle sweeps above the tower: tap 
 
 The phone home screen keeps the live 3D preview, **Let’s play**, **Change vehicle**, and **Change place** on one screen. All screens fit the current viewport without scrolling. Use **Previous** and **Next** in the vehicle, place, garage, achievement, and leaderboard screens to reach additional choices. Page sizes adapt to screen height and orientation.
 
+Background music is on by default and starts when you choose **Let’s play**. It pauses with the game and fades out on game over or return home. In **Settings → Background music**, you can turn it off independently of sound effects; your preference is saved for future sessions.
+
 ```bash
 npm run build       # strict TypeScript validation and production bundle
 npm test            # progression, purchases, persistence, reward rules
@@ -32,7 +34,7 @@ The browser tests use `/usr/bin/chromium` by default. Set `CHROMIUM_PATH` to a l
 - Fixed-vehicle selection and mixed mode, which draws only from unlocked vehicles.
 - Forest, night city, space, snow mountains, desert, and beach worlds, built from 3D geometry. Clouds move, beach water animates, and the camera climbs with the physical tower.
 - Gravity, compound rigid-body collision shapes, friction, impact settling, stability monitoring, slow-motion perfect landings, camera shake, and collision particles.
-- Synthesized sound effects, optional vibration, and reduced-motion settings.
+- Synthesized sound effects, an original looping background score with independent music and effects controls, optional vibration, and reduced-motion settings. The score is rendered once into a reusable audio buffer to avoid ongoing music scheduling on the game thread.
 - Earned coins, three unlockable vehicles, six achievements, high scores, and local leaderboards. A new save receives 120 starter coins.
 - Saved choices, settings, purchases, achievements, scores, and coins in versioned local storage. Invalid or unavailable storage does not prevent play.
 - Fixed viewport desktop and mobile UI with large touch controls, paged collections, keyboard controls, accessible native dialogs, self-hosted fonts, and adaptive rendering quality.
@@ -75,7 +77,7 @@ python3 scripts/build-android-cloud.py assembleDebug
 - `src/scenery.ts`: environment geometry, foliage and ground textures, lighting, atmospheric animation.
 - `src/main.ts` / `src/style.css` / `src/layout.css`: menus, HUD, fixed viewport layouts, paged dialogs, achievements, and progression integration.
 - `src/store.mjs`: versioned saves, vehicle costs, achievement definitions, reward rules, personal rankings.
-- `src/audio.ts`: Web Audio synthesis triggered after player interaction.
+- `src/audio.ts`: synthesized effects and an original looping background score, triggered after player interaction with independent controls and pause/resume handling.
 - `tests/`: unit coverage plus live browser integration checks.
 
 ## Release work still required

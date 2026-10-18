@@ -14,6 +14,7 @@ const paths: Record<string,string> = {
   lock:'<rect x="5" y="10" width="14" height="11" rx="3"/><path d="M8 10V6a4 4 0 0 1 8 0v4M12 14v3"/>',
   sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/>',
   sound:'<path d="M4 9h4l5-5v16l-5-5H4zM17 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/>',
+  music:'<path d="M9 18V5l11-2v13M9 8l11-2"/><ellipse cx="6" cy="18" rx="3" ry="2.5"/><ellipse cx="17" cy="16" rx="3" ry="2.5"/>',
   mute:'<path d="M4 9h4l5-5v16l-5-5H4zM17 9l5 6m0-6-5 6"/>',
   pause:'<path d="M8 5v14m8-14v14" stroke-width="4"/>',
   home:'<path d="m3 10 9-7 9 7v11h-6v-8H9v8H3z"/>',

@@ -25,9 +25,9 @@ export const ACHIEVEMENTS = [
 ];
 export const STORAGE_KEY = 'stackline.progress.v1';
 /** @typedef {{score:number,stacks:number,height:number,world:string,combo:number,date:string}} Run */
-/** @typedef {{version:number,coins:number,best:number,bestHeight:number,selectedVehicle:string,selectedWorld:string,unlocked:string[],achievements:string[],runs:Run[],totalStacks:number,settings:{sound:boolean,haptics:boolean,quality:string,reduceMotion:boolean}}} State */
+/** @typedef {{version:number,coins:number,best:number,bestHeight:number,selectedVehicle:string,selectedWorld:string,unlocked:string[],achievements:string[],runs:Run[],totalStacks:number,settings:{sound:boolean,music:boolean,haptics:boolean,quality:string,reduceMotion:boolean}}} State */
 /** @returns {State} */
-export function initialState(){return {version:1,coins:120,best:0,bestHeight:0,selectedVehicle:'mixed',selectedWorld:'forest',unlocked:['mixed','car','suv','truck'],achievements:[],runs:[],totalStacks:0,settings:{sound:true,haptics:true,quality:'auto',reduceMotion:false}};}
+export function initialState(){return {version:1,coins:120,best:0,bestHeight:0,selectedVehicle:'mixed',selectedWorld:'forest',unlocked:['mixed','car','suv','truck'],achievements:[],runs:[],totalStacks:0,settings:{sound:true,music:true,haptics:true,quality:'auto',reduceMotion:false}};}
 export function loadState(storage){
   const base=initialState();
   try {
@@ -39,7 +39,7 @@ export function loadState(storage){
     if(WORLDS.some(w=>w.id===raw.selectedWorld)) base.selectedWorld=raw.selectedWorld;
     base.achievements=Array.isArray(raw.achievements)?raw.achievements.filter(id=>ACHIEVEMENTS.some(a=>a.id===id)):[];
     base.runs=Array.isArray(raw.runs)?raw.runs.filter(r=>Number.isFinite(r.score)&&r.score>=0&&Number.isFinite(r.stacks)&&r.stacks>=0&&Number.isFinite(r.height)&&typeof r.date==='string').slice(0,20):[];
-    if(raw.settings){for(const k of ['sound','haptics','reduceMotion']) if(typeof raw.settings[k]==='boolean') base.settings[k]=raw.settings[k];if(['auto','high','low'].includes(raw.settings.quality)) base.settings.quality=raw.settings.quality;}
+    if(raw.settings){for(const k of ['sound','music','haptics','reduceMotion']) if(typeof raw.settings[k]==='boolean') base.settings[k]=raw.settings[k];if(['auto','high','low'].includes(raw.settings.quality)) base.settings.quality=raw.settings.quality;}
   } catch { /* Storage can be unavailable or contain an older save. */ }
   return base;
 }

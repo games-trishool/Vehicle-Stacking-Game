@@ -27,7 +27,7 @@ async function expectFits(page:Page,selector:string){
 }
 test('home, selectors, six live worlds and preferences persist without rendering errors',async({page})=>{
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
- await ready(page);await expect(page.locator('h1')).toContainText('ONE HIGHER.');
+ await ready(page);await expect(page.locator('.play-button')).toBeVisible();await expect(page.locator('h1')).toHaveCount(0);
  await page.locator('[data-action="vehicles"]').click();await choose(page,'truck');await expect(page.locator('[data-id="truck"]')).toHaveAttribute('aria-pressed','true');await page.locator('[data-action="close"]').click();
  await page.locator('.selection-row[data-action="worlds"]').click();
  for(const world of ['city','space','snow','desert','beach','forest']){
@@ -52,12 +52,15 @@ test('actual physics rewards centered drops, records a failed run and replays cl
    expect((await snapshot(page)).mode).toBe('playing');expect((await snapshot(page)).stacks).toBe(i);
  }
  const landed=await snapshot(page);expect(landed.score).toBeGreaterThanOrEqual(300);expect(landed.coins).toBeGreaterThan(120);expect(landed.height).toBeGreaterThan(3);
+ expect(landed.musicPlaying).toBe(true);expect(landed.musicLevel).toBeGreaterThan(.0001);
  await page.keyboard.press('Escape');await expect(page.getByRole('dialog')).toBeVisible();expect((await snapshot(page)).mode).toBe('paused');
  const before=await snapshot(page);await page.waitForTimeout(350);const after=await snapshot(page);expect(after.heldX).toBe(before.heldX);
  await page.locator('[data-action="resume"]').click();await expect(page.getByRole('dialog')).not.toBeVisible();
  await page.waitForFunction(()=>{const s=(window as any).stackline.snapshot();if(s.held&&Math.abs(s.heldX-s.topX)>3.1){document.dispatchEvent(new KeyboardEvent('keydown',{code:'Space',bubbles:true}));return true;}return false;},{},{timeout:65000,polling:'raf'});
  await page.waitForFunction(()=>(window as any).stackline.snapshot().mode==='ended',{},{timeout:60000});await expect(page.locator('.result-score')).toBeVisible();
  expect((await snapshot(page)).falling).toBe(true);
+ expect((await snapshot(page)).musicPlaying).toBe(false);await expectFits(page,'#modal');
+ await page.screenshot({path:'test-results/game-over.png'});
  await page.getByRole('button',{name:'One more climb'}).click();
  expect(await snapshot(page)).toMatchObject({mode:'playing',score:0,stacks:0,stability:100,held:true,falling:false,sceneVehicles:2});
  await expect(page.locator('#run-coins')).toHaveText('0');
@@ -100,6 +103,35 @@ test('keyboard focus activates menu and gameplay buttons correctly',async({page}
  await page.locator('.play-button').focus();await page.keyboard.press('Space');expect((await snapshot(page)).mode).toBe('playing');
  await page.locator('.drop-button').focus();await page.keyboard.press('Space');const s=await snapshot(page);expect(s.held).toBe(false);expect(s.falling).toBe(true);
 });
+test('background music starts on play, pauses, and respects its saved setting independently of effects',async({page})=>{
+ test.setTimeout(180_000);await page.setViewportSize({width:480,height:640});await ready(page);
+ expect(await snapshot(page)).toMatchObject({musicEnabled:true,musicPlaying:false});
+ await page.locator('.selection-row[data-action="worlds"]').click();await choose(page,'space');await page.locator('[data-action="close"]').click();
+ await page.locator('.play-button').click();
+ await expect.poll(async()=>{const s=await snapshot(page);return s.musicPlaying&&s.musicLevel>.0001;}).toBe(true);
+ await page.keyboard.press('Escape');
+ await expect.poll(async()=>(await snapshot(page)).musicLevel).toBeLessThan(.00001);
+ expect((await snapshot(page)).musicPlaying).toBe(false);
+ await page.getByRole('button',{name:'Keep climbing'}).click();
+ await expect.poll(async()=>{const s=await snapshot(page);return s.musicPlaying&&s.musicLevel>.0001;}).toBe(true);
+ await page.keyboard.press('Escape');await page.getByRole('button',{name:'Back to home'}).click();
+ await page.getByRole('button',{name:'Settings',exact:true}).click();
+ await expect(page.getByRole('switch',{name:'Background music',exact:true})).toHaveAttribute('aria-checked','true');
+ await page.getByRole('switch',{name:'Background music',exact:true}).click();
+ await expect(page.getByRole('switch',{name:'Sound effects',exact:true})).toHaveAttribute('aria-checked','false');
+ await page.reload();await page.waitForFunction(()=>!!(window as any).stackline);
+ expect(await snapshot(page)).toMatchObject({musicEnabled:false,musicPlaying:false});
+ await page.locator('.play-button').click();await page.waitForTimeout(350);
+ expect(await snapshot(page)).toMatchObject({musicEnabled:false,musicPlaying:false,musicLevel:0});
+ await page.keyboard.press('Escape');await page.getByRole('button',{name:'Back to home'}).click();
+ await page.getByRole('button',{name:'Settings',exact:true}).click();
+ await page.getByRole('switch',{name:'Background music',exact:true}).click();
+ expect(await snapshot(page)).toMatchObject({musicEnabled:true,musicPlaying:false});
+ await page.locator('[data-action="close"]').click();await page.locator('.play-button').click();
+ await expect.poll(async()=>{const s=await snapshot(page);return s.musicPlaying&&s.musicLevel>.0001;}).toBe(true);
+ await page.keyboard.press('Escape');await page.getByRole('button',{name:'Back to home'}).click();
+ await expect.poll(async()=>(await snapshot(page)).musicLevel).toBeLessThan(.00001);
+});
 test.describe('touch layouts',()=>{
 test.use({hasTouch:true});
 test('mobile screens fit without scrolling and every collection is reachable by page buttons',async({page})=>{
@@ -121,6 +153,7 @@ test('mobile screens fit without scrolling and every collection is reachable by 
    await page.locator(opener).first().tap();await expectFits(page,'#modal');
    if(action==='vehicles'&&size.width===390)await page.screenshot({path:'test-results/mobile-vehicle-pages.png'});
    if(action==='garage'&&size.width===390)await page.screenshot({path:'test-results/mobile-garage.png'});
+   if(action==='settings'&&size.width===390)await page.screenshot({path:'test-results/mobile-settings.png'});
    if(cardSelector){
     let seen=0;
     for(let n=0;n<5;n++){

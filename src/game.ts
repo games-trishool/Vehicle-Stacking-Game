@@ -28,14 +28,15 @@ export class StackingGame {
   get averageFps(){return Math.round(this.frames/Math.max(this.frameTime,.001));}
   get vehicleCount(){let count=0;this.scene.traverse(object=>{if(object.userData.spec&&object.userData.id)count++;});return count;}
   resize(){const {width,height}=this.container.getBoundingClientRect();if(width<1||height<1)return;this.renderer.setSize(width,height);this.camera.aspect=width/height;this.camera.updateProjectionMatrix();}
-  configure(settings:{quality:string;reduceMotion:boolean;sound:boolean}){
-    this.quality=settings.quality;this.reduceMotion=settings.reduceMotion;this.audio.setEnabled(settings.sound);
+  configure(settings:{quality:string;reduceMotion:boolean;sound:boolean;music:boolean}){
+    this.quality=settings.quality;this.reduceMotion=settings.reduceMotion;this.audio.setEnabled(settings.sound);this.audio.setMusicEnabled(settings.music);
     const low=settings.quality==='low'||(settings.quality==='auto'&&((navigator.hardwareConcurrency||8)<=4));this.renderer.setPixelRatio(Math.min(devicePixelRatio,low?1:this.mobile?1.5:1.75));this.renderer.shadowMap.enabled=!low;this.resize();
   }
-  changeWorld(id:WorldId){if(id===this.worldId)return;this.scenery.dispose();this.worldId=id;this.scenery=new Scenery(this.scene,id);this.configure({quality:this.quality,reduceMotion:this.reduceMotion,sound:this.audio.enabled});}
+  changeWorld(id:WorldId){if(id===this.worldId)return;this.scenery.dispose();this.worldId=id;this.scenery=new Scenery(this.scene,id);this.configure({quality:this.quality,reduceMotion:this.reduceMotion,sound:this.audio.enabled,music:this.audio.musicEnabled});}
   setVehicles(selected:string,unlocked:string[]){this.selectedVehicle=selected;this.unlocked=unlocked.filter(id=>id!=='mixed') as VehicleId[];if(this.mode==='home')this.showHome();}
   private pick():VehicleId{if(this.selectedVehicle!=='mixed')return this.selectedVehicle as VehicleId;return this.unlocked[Math.floor(Math.random()*this.unlocked.length)]||'car';}
   private clear(){
+    this.audio.stopMusic();
     for(const item of this.items)this.scene.remove(item.mesh);
     // A missed drop stays outside items so its fall can animate after game over.
     // Remove it before discarding the reference when starting another run or home.
@@ -54,7 +55,7 @@ export class StackingGame {
     this.top=y;this.lookY=y*.49;this.phase=0;
   }
   start(){
-    this.clear();this.mode='playing';this.score=0;this.stacks=0;this.combo=0;this.coins=0;this.top=.49;this.stability=100;this.phase=0;this.lookY=2.2;this.audio.init();
+    this.clear();this.mode='playing';this.score=0;this.stacks=0;this.combo=0;this.coins=0;this.top=.49;this.stability=100;this.phase=0;this.lookY=2.2;this.audio.startMusic(true);
     this.world=new CANNON.World({gravity:new CANNON.Vec3(0,-12,0)});this.world.broadphase=new CANNON.SAPBroadphase(this.world);this.world.allowSleep=true;
     (this.world.solver as CANNON.GSSolver).iterations=16;this.world.defaultContactMaterial.friction=.65;this.world.defaultContactMaterial.restitution=.045;
     const floor=new CANNON.Body({mass:0,shape:new CANNON.Box(new CANNON.Vec3(4.1,.3,4.1)),position:new CANNON.Vec3(0,.19,0)});this.world.addBody(floor);
@@ -80,8 +81,8 @@ export class StackingGame {
     this.scene.add(item.mesh);this.world.addBody(item.body);this.falling=item;this.elapsed=0;this.settled=0;this.audio.drop();
     item.body.addEventListener('collide',(e:{body:CANNON.Body})=>{if(this.items.some(i=>i.body===e.body)){this.contact=true;if(this.shake<.04&&!this.reduceMotion)this.shake=.08;}});return true;
   }
-  pause(){if(this.mode==='playing')this.mode='paused';}
-  resume(){if(this.mode==='paused'){this.mode='playing';this.last=performance.now();}}
+  pause(){if(this.mode==='playing'){this.mode='paused';this.audio.pauseMusic();}}
+  resume(){if(this.mode==='paused'){this.mode='playing';this.last=performance.now();this.audio.startMusic();}}
   private land(){
     if(!this.falling)return;
     const item=this.falling,previous=this.items.at(-1)!;const error=Math.abs(item.body.position.x-previous.body.position.x);const perfect=error<.24&&Math.abs(item.body.quaternion.z)<.14;
@@ -92,7 +93,7 @@ export class StackingGame {
     this.burst(new THREE.Vector3(item.body.position.x,item.landedY+.5,0),perfect);
     this.onLanding({perfect,combo:this.combo,score:this.score,stacks:this.stacks,height:this.top,coins:reward.coins,stability:this.stability});this.spawnTimer=.62;
   }
-  private end(){if(this.mode!=='playing')return;this.mode='ended';this.audio.fail();if(this.held){this.scene.remove(this.held);this.held=undefined;}if(this.guide)this.guide.visible=false;this.onEnd({perfect:false,combo:this.combo,score:this.score,stacks:this.stacks,height:this.top,coins:this.coins,stability:this.stability});}
+  private end(){if(this.mode!=='playing')return;this.mode='ended';this.audio.stopMusic();this.audio.fail();if(this.held){this.scene.remove(this.held);this.held=undefined;}if(this.guide)this.guide.visible=false;this.onEnd({perfect:false,combo:this.combo,score:this.score,stacks:this.stacks,height:this.top,coins:this.coins,stability:this.stability});}
   private burst(position:THREE.Vector3,perfect:boolean){
     const n=perfect?45:22,geo=new THREE.SphereGeometry(perfect?.035:.07,5,4),material=new THREE.MeshBasicMaterial({color:perfect?0xffd571:0xa4a58a,transparent:true});const mesh=new THREE.InstancedMesh(geo,material,n);const p=[],v=[];
     for(let i=0;i<n;i++){p.push(position.clone().add(new THREE.Vector3((Math.random()-.5)*3,.1,(Math.random()-.5)*2)));v.push(new THREE.Vector3((Math.random()-.5)*4,1+Math.random()*3,(Math.random()-.5)*4));}this.scene.add(mesh);this.particles.push({mesh,p,v,age:0});
@@ -143,5 +144,5 @@ export class StackingGame {
     if(this.frames===180&&this.quality==='auto'&&this.frameTime/this.frames>.04){this.renderer.setPixelRatio(1);this.renderer.shadowMap.enabled=false;this.resize();}
     this.update(this.mode==='paused'?0:dt);this.renderer.render(this.scene,this.camera);
   };
-  dispose(){cancelAnimationFrame(this.raf);this.observer.disconnect();this.clear();this.scenery.dispose();this.environmentTarget.dispose();this.renderer.dispose();}
+  dispose(){cancelAnimationFrame(this.raf);this.observer.disconnect();this.clear();this.audio.dispose();this.scenery.dispose();this.environmentTarget.dispose();this.renderer.dispose();}
 }

@@ -30,11 +30,6 @@ app.innerHTML=`
   <main class="home-main">
     <div class="hero" id="hero">
       <section class="intro" id="intro">
-        <div class="intro-heading">
-        <div class="eyebrow"><span class="tiny-line"></span> THE ART OF BALANCE</div>
-        <h1>ONE MORE.<br><span>ONE HIGHER.</span></h1>
-        <p class="intro-copy">A little timing. A little courage.<br>Stack your way to something extraordinary.</p>
-        </div>
         <div class="home-actions">
         <button class="play-button" data-action="play" aria-label="Let’s play">${icon('play')}<span>Let’s play</span><span class="key-hint">SPACE</span>${icon('arrow')}</button>
         <div class="selection-list">
@@ -120,7 +115,7 @@ function openDialog(kind:string){
  }
  if(kind==='settings'){
    content=modalHeader('MAKE YOURSELF AT HOME','Your kind of play.','The little things that make every climb feel right.');
-   content+=`<div class="settings-list">${settingToggle('sound','Sound effects','A satisfying sound for every landing.','sound')}${settingToggle('haptics','Touch feedback','Feel your timing with gentle vibrations.','target')}${settingToggle('reduceMotion','Reduce motion','Turn off camera shake and slow motion.','layers')}<div class="setting-row"><span class="setting-icon">${icon('sun')}</span><div><strong>Graphics quality</strong><p>Auto adapts to your device. Battery saver reduces shadows.</p></div><select id="quality" aria-label="Graphics quality"><option value="auto" ${state.settings.quality==='auto'?'selected':''}>Auto</option><option value="high" ${state.settings.quality==='high'?'selected':''}>High</option><option value="low" ${state.settings.quality==='low'?'selected':''}>Battery saver</option></select></div></div><div class="settings-note">${icon('info')} Progress is saved on this device. No account needed.</div>`;
+   content+=`<div class="settings-list">${settingToggle('music','Background music','A gentle soundtrack for every climb.','music')}${settingToggle('sound','Sound effects','A satisfying sound for every landing.','sound')}${settingToggle('haptics','Touch feedback','Feel your timing with gentle vibrations.','target')}${settingToggle('reduceMotion','Reduce motion','Turn off camera shake and slow motion.','layers')}<div class="setting-row"><span class="setting-icon">${icon('sun')}</span><div><strong>Graphics quality</strong><p>Auto adapts to your device. Battery saver reduces shadows.</p></div><select id="quality" aria-label="Graphics quality"><option value="auto" ${state.settings.quality==='auto'?'selected':''}>Auto</option><option value="high" ${state.settings.quality==='high'?'selected':''}>High</option><option value="low" ${state.settings.quality==='low'?'selected':''}>Battery saver</option></select></div></div><div class="settings-note">${icon('info')} Progress is saved on this device. No account needed.</div>`;
  }
  if(kind==='leaderboard'){
    content=modalHeader('A LITTLE FRIENDLY COMPETITION','Your best climbs.','Every personal best starts with one good drop.');
@@ -135,7 +130,7 @@ function openDialog(kind:string){
  }
  if(kind==='howto')content=modalHeader('SIMPLE TO LEARN. SATISFYING TO MASTER.','Find your rhythm.','The best towers are built one moment at a time.')+`<div class="howto-steps"><div><b>01</b><h3>Watch the ride.</h3><p>Your next vehicle moves above the tower. Wait until it lines up with the vehicle below.</p></div><div><b>02</b><h3>Make the drop.</h3><p>Tap the scene, use the Drop button, or press Space. Gravity takes it from there.</p></div><div><b>03</b><h3>Keep your balance.</h3><p>Land near the center for a perfect drop. Chain perfects for up to 5× points and extra coins. An off-center tower can topple.</p></div></div><button class="primary-button wide" data-action="play">Ready when you are ${icon('arrow')}</button>`;
  if(kind==='pause'){
-   game?.pause();content=modalHeader('TAKE A BREATH','The view can wait.','Your tower will be right here when you’re ready.')+`<div class="pause-actions"><button class="primary-button wide" data-action="resume">${icon('play')} Keep climbing</button><button class="secondary-button wide" data-action="restart">${icon('refresh')} Start a new run</button><button class="text-button" data-action="end-home">${icon('home')} Back to home</button></div>`;
+   game?.pause();content=modalHeader('TAKE A BREATH','The view can wait.','Your tower will be right here when you’re ready.')+`<div class="pause-actions"><button class="primary-button wide" data-action="resume">${icon('play')} Keep climbing</button><button class="secondary-button wide" data-action="restart">${icon('refresh')} Start a new run</button><button class="text-button home-button" data-action="end-home">${icon('home')} Back to home</button></div>`;
  }
  if(kind==='result')content=resultContent();
  $('modal-content').innerHTML=content;modal.className=`modal ${kind==='pause'||kind==='result'?'compact-modal':''}`;modal.dataset.screen=kind;layoutDialog(page);if(!modal.open)modal.showModal();
@@ -168,8 +163,8 @@ function layoutDialog(page=0){
 }
 let dialogResizeFrame=0;
 window.addEventListener('resize',()=>{cancelAnimationFrame(dialogResizeFrame);dialogResizeFrame=requestAnimationFrame(()=>{if(modal.open)layoutDialog(dialogPage);});});
-function settingToggle(key:'sound'|'haptics'|'reduceMotion',title:string,copy:string,i:string){return `<div class="setting-row"><span class="setting-icon">${icon(i)}</span><div><strong>${title}</strong><p>${copy}</p></div><button class="toggle ${state.settings[key]?'on':''}" data-action="toggle" data-id="${key}" role="switch" aria-checked="${state.settings[key]}" aria-label="${title}"><i></i></button></div>`;}
-function resultContent(){const isBest=game&&game.score>0&&game.score>runPreviousBest;return modalHeader(isBest?'A NEW PERSONAL BEST':'EVERY DROP IS A NEW BEGINNING',isBest?'That’s a new high.':'What a climb.',isBest?'Take a moment. You’ve earned the view.':'A little higher next time? You’ve got this.')+`<div class="result-trophy">${icon(isBest?'trophy':'layers')}</div><div class="result-score"><small>YOUR SCORE</small><strong>${game?.score.toLocaleString()||0}</strong></div><div class="result-stats"><div><strong>${game?.stacks||0}</strong><span>VEHICLES</span></div><div><strong>${(game?.top||0).toFixed(1)} m</strong><span>HEIGHT</span></div><div><strong>+${game?.coins||0}</strong><span>COINS EARNED</span></div></div><button class="primary-button wide" data-action="play">${icon('refresh')} One more climb ${icon('arrow')}</button><button class="text-button" data-action="home">${icon('home')} Back to home</button>`;}
+function settingToggle(key:'sound'|'music'|'haptics'|'reduceMotion',title:string,copy:string,i:string){return `<div class="setting-row"><span class="setting-icon">${icon(i)}</span><div><strong>${title}</strong><p>${copy}</p></div><button class="toggle ${state.settings[key]?'on':''}" data-action="toggle" data-id="${key}" role="switch" aria-checked="${state.settings[key]}" aria-label="${title}"><i></i></button></div>`;}
+function resultContent(){const isBest=game&&game.score>0&&game.score>runPreviousBest;return modalHeader(isBest?'A NEW PERSONAL BEST':'EVERY DROP IS A NEW BEGINNING',isBest?'That’s a new high.':'What a climb.',isBest?'Take a moment. You’ve earned the view.':'A little higher next time? You’ve got this.')+`<div class="result-trophy">${icon(isBest?'trophy':'layers')}</div><div class="result-score"><small>YOUR SCORE</small><strong>${game?.score.toLocaleString()||0}</strong></div><div class="result-stats"><div><strong>${game?.stacks||0}</strong><span>VEHICLES</span></div><div><strong>${(game?.top||0).toFixed(1)} m</strong><span>HEIGHT</span></div><div><strong>+${game?.coins||0}</strong><span>COINS EARNED</span></div></div><button class="primary-button wide" data-action="play">${icon('refresh')} One more climb ${icon('arrow')}</button><button class="text-button home-button" data-action="home">${icon('home')} Back to home</button>`;}
 function closeDialog(resume=true){if(modal.open)modal.close();if(resume&&dialogKind==='pause')game?.resume();dialogKind='';dialogPage=0;}
 function saveRun(){if(runRecorded||!game)return;recordRun(state,{score:game.score,stacks:game.stacks,height:game.stacks?game.top:0,world:state.selectedWorld,combo:sessionBestCombo});runRecorded=true;persist();renderState();}
 function handleAction(action:string,id?:string){
@@ -191,7 +186,7 @@ function handleAction(action:string,id?:string){
    state.selectedVehicle=id;persist();game?.setVehicles(id,state.unlocked);renderState();openDialog(dialogKind);toast(`${VEHICLES.find(v=>v.id===id)!.name} selected`);
  }
  else if(action==='select-world'&&id){state.selectedWorld=id;persist();game?.changeWorld(id as WorldId);renderState();openDialog('worlds');toast(`${WORLDS.find(w=>w.id===id)!.name} selected`);}
- else if(action==='toggle'&&(id==='sound'||id==='haptics'||id==='reduceMotion')){state.settings[id]=!state.settings[id];persist();game?.configure(state.settings);openDialog('settings');}
+ else if(action==='toggle'&&(id==='sound'||id==='music'||id==='haptics'||id==='reduceMotion')){state.settings[id]=!state.settings[id];persist();game?.configure(state.settings);openDialog('settings');}
 }
 app.addEventListener('click',e=>{const el=(e.target as Element).closest<HTMLButtonElement>('[data-action]');if(el)handleAction(el.dataset.action!,el.dataset.id);});
 $('scene-panel').addEventListener('pointerdown',e=>{if((e.target as Element).closest('button')||modal.open)return;if(game?.mode==='playing')handleAction('drop');});
@@ -222,6 +217,6 @@ requestAnimationFrame(()=>setTimeout(()=>{
      void App.addListener('appStateChange',({isActive})=>{if(!isActive){if(game?.mode==='playing')openDialog('pause');void game?.audio.context?.suspend();}});
    }
    // Expose only a read-only diagnostic snapshot for smoke tests and performance inspection.
-   Object.defineProperty(window,'stackline',{value:{snapshot:()=>({mode:game?.mode,score:game?.score,stacks:game?.stacks,height:game?.top,heldX:game?.held?.position.x,held:!!game?.held,falling:!!game?.falling,sceneVehicles:game?.vehicleCount,topX:game?.items.at(-1)?.body.position.x,stability:game?.stability,drawCalls:game?.renderer.info.render.calls,triangles:game?.renderer.info.render.triangles,vehicle:state.selectedVehicle,world:state.selectedWorld,coins:state.coins,quality:state.settings.quality,fps:game?.averageFps,cameraY:game?.camera.position.y,storageKey:'stackline.progress.v1'})},writable:false});
+   Object.defineProperty(window,'stackline',{value:{snapshot:()=>({mode:game?.mode,score:game?.score,stacks:game?.stacks,height:game?.top,heldX:game?.held?.position.x,held:!!game?.held,falling:!!game?.falling,sceneVehicles:game?.vehicleCount,topX:game?.items.at(-1)?.body.position.x,stability:game?.stability,drawCalls:game?.renderer.info.render.calls,triangles:game?.renderer.info.render.triangles,vehicle:state.selectedVehicle,world:state.selectedWorld,coins:state.coins,quality:state.settings.quality,musicEnabled:game?.audio.musicEnabled,musicPlaying:game?.audio.musicPlaying,musicLevel:game?.audio.musicLevel,fps:game?.averageFps,cameraY:game?.camera.position.y,storageKey:'stackline.progress.v1'})},writable:false});
  }catch(error){console.error(error);$('loading').innerHTML=`<div class="webgl-error">${icon('info')}<h3>Your graphics engine needs a hand.</h3><p>Enable WebGL or hardware acceleration in your browser, then reload to play.</p><button class="primary-button" id="reload">Try again</button></div>`;document.getElementById('reload')?.addEventListener('click',()=>location.reload());}
 },0));

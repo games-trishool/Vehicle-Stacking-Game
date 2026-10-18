@@ -12,8 +12,15 @@ test('unlocking spends coins once and rejects unaffordable purchases',()=>{
  state.coins=200;assert.equal(unlockVehicle(state,'sports'),true);assert.equal(state.coins,50);assert.equal(unlockVehicle(state,'sports'),true);assert.equal(state.coins,50);assert.equal(unlockVehicle(state,'invalid'),false);
 });
 test('vehicle, world, settings and progress survive a storage round trip',()=>{
- const s=memory(),state=initialState();state.selectedVehicle='truck';state.selectedWorld='space';state.settings.sound=false;state.achievements.push('perfect');state.coins=984;
+ const s=memory(),state=initialState();state.selectedVehicle='truck';state.selectedWorld='space';state.settings.sound=false;state.settings.music=false;state.achievements.push('perfect');state.coins=984;
  assert.equal(saveState(s,state),true);assert.deepEqual(loadState(s),state);
+});
+test('music defaults on for existing saves and its preference is independent of effects',()=>{
+ const s=memory();s.setItem(STORAGE_KEY,JSON.stringify({version:1,coins:240,settings:{sound:false}}));
+ const state=loadState(s);assert.equal(state.settings.music,true);assert.equal(state.settings.sound,false);assert.equal(state.coins,240);
+ state.settings.music=false;state.settings.sound=true;saveState(s,state);
+ const restored=loadState(s);assert.equal(restored.settings.music,false);assert.equal(restored.settings.sound,true);
+ s.setItem(STORAGE_KEY,JSON.stringify({version:1,settings:{music:'false'}}));assert.equal(loadState(s).settings.music,true);
 });
 test('corrupt or unavailable storage starts a usable game',()=>{
  const s=memory();s.setItem(STORAGE_KEY,'{broken');assert.deepEqual(loadState(s),initialState());assert.deepEqual(loadState({getItem:()=>{throw Error('blocked');}}),initialState());assert.equal(saveState({setItem:()=>{throw Error('quota');}},initialState()),false);
