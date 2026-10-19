@@ -1,1 +1,1 @@
-b3673a77f41945869f8d5aa91a3ca168fb773321353d40000f73477c5756f3bf  Stack-Vechiles-1.2.0-unsigned.aab
+18c1744dd0f3f8ee76e06b6789abdaf0284a207d0f6bb6daa4bf1e347a5c6391  Stack-Vechiles-1.2.1-unsigned.aab

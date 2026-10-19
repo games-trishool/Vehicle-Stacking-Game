@@ -184,10 +184,17 @@ test('home stays fixed, vehicle and place lists swipe vertically, and every coll
    if(action==='vehicles'&&size.width===390)await page.screenshot({path:'test-results/mobile-vehicle-pages.png'});
    if(action==='garage'&&size.width===390)await page.screenshot({path:'test-results/mobile-garage.png'});
    if(action==='settings'&&size.width===390)await page.screenshot({path:'test-results/mobile-settings.png'});
-   if(['vehicles','worlds','garage'].includes(action)){
+   if(['vehicles','worlds','garage','achievements'].includes(action)){
     const list=page.locator('.selection-scroll'),cards=list.locator(cardSelector),heading=page.locator('.modal-heading');
     await expect(cards).toHaveCount(total);await expect(page.locator('.dialog-pager')).toHaveCount(0);
     const headingBefore=await heading.boundingBox(),box=(await list.boundingBox())!;
+    const actions=page.locator('.selection-actions'),actionsBefore=action==='achievements'?null:await actions.boundingBox();
+    if(action!=='achievements'){
+     await expect(page.locator('.close-modal')).toHaveCount(0);
+     const cancel=(await page.getByRole('button',{name:'Cancel',exact:true}).boundingBox())!,done=(await page.getByRole('button',{name:'Done',exact:true}).boundingBox())!;
+     expect(cancel.height).toBeGreaterThanOrEqual(44);expect(done.height).toBeGreaterThanOrEqual(44);
+     expect(done.x-(cancel.x+cancel.width)).toBeGreaterThanOrEqual(8);expect(done.x-(cancel.x+cancel.width)).toBeLessThanOrEqual(12);
+    }
     expect(await list.evaluate(el=>el.scrollHeight>el.clientHeight)).toBe(true);
     // Real touch gestures scroll the list while the document and header stay fixed.
     for(let n=0;n<12;n++){
@@ -202,6 +209,7 @@ test('home stays fixed, vehicle and place lists swipe vertically, and every coll
     }
     await expect.poll(()=>list.evaluate(el=>el.scrollTop+el.clientHeight>=el.scrollHeight-2)).toBe(true);
     const scrolled=await list.evaluate(el=>el.scrollTop);expect(scrolled).toBeGreaterThan(0);
+    if(actionsBefore)expect(await actions.boundingBox()).toEqual(actionsBefore);
     expect(await heading.boundingBox()).toEqual(headingBefore);expect(await page.evaluate(()=>scrollY)).toBe(0);
     if(action==='worlds'){
      await cards.last().tap();await expect(cards.last()).toHaveAttribute('aria-pressed','true');
@@ -252,11 +260,11 @@ test('Done commits selections and purchases; closing cancels; reset needs confir
  await page.addInitScript(()=>{const key='stackline.progress.v1';if(!localStorage.getItem(key))localStorage.setItem(key,JSON.stringify({version:1,coins:1000,selectedWorld:'beach',best:800,bestHeight:14,totalStacks:20,achievements:['first'],runs:[{score:800,stacks:8,height:14,world:'forest',date:'2026-10-19'}],settings:{quality:'low',sound:false,music:false}}));});
  await ready(page);expect((await snapshot(page)).world).toBe('forest');
  await page.getByRole('button',{name:'Change vehicle',exact:true}).click();await choose(page,'suv');
- expect((await snapshot(page)).vehicle).toBe('mixed');await page.getByRole('button',{name:'Close dialog'}).click();
+ expect((await snapshot(page)).vehicle).toBe('mixed');await page.getByRole('button',{name:'Cancel',exact:true}).click();
  expect((await snapshot(page)).vehicle).toBe('mixed');
  await page.getByRole('button',{name:'Change vehicle',exact:true}).click();await choose(page,'suv');await page.getByRole('button',{name:'Done',exact:true}).click();
  expect((await snapshot(page)).vehicle).toBe('suv');
- await page.getByRole('button',{name:'Change place',exact:true}).click();await choose(page,'snow');await page.getByRole('button',{name:'Close dialog'}).click();
+ await page.getByRole('button',{name:'Change place',exact:true}).click();await choose(page,'snow');await page.getByRole('button',{name:'Cancel',exact:true}).click();
  expect(await snapshot(page)).toMatchObject({coins:1000,world:'forest',unlockedWorlds:['forest','city','space']});
  await page.getByRole('button',{name:'Change place',exact:true}).click();await choose(page,'snow');await page.getByRole('button',{name:'Done',exact:true}).click();
  expect(await snapshot(page)).toMatchObject({coins:850,world:'snow',unlockedWorlds:['forest','city','space','snow']});

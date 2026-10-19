@@ -17,7 +17,7 @@ Tap **Let’s play**, or press **Space**. A vehicle sweeps above the tower: tap 
 
 The fixed starting vehicle supports the tower on its platform. Any dropped or stacked vehicle touching the platform or the surrounding ground immediately ends the run, including contact by a wheel. A vehicle that slides down later is still monitored.
 
-The phone home screen keeps the live 3D preview, **Let’s play**, **Change vehicle**, and **Change place** on one fixed screen. Swipe vertically inside **Change vehicle**, **Change place**, or **Garage** to see every choice; their headings and close buttons stay in place. Selecting a vehicle or place preserves your position in the list. Tap **Done** at the bottom to save and, if needed, purchase the selected choice. The **×** button closes the dialog and discards the pending selection without spending coins. Achievements and the leaderboard use **Previous** and **Next**, with page sizes that adapt to screen height and orientation.
+The phone home screen keeps the live 3D preview, **Let’s play**, **Change vehicle**, and **Change place** on one fixed screen. Swipe vertically inside **Change vehicle**, **Change place**, or **Garage** to see every choice; their headings and footer buttons stay in place. Selecting a vehicle or place preserves your position in the list. Tap **Done** at the bottom to save and, if needed, purchase the selected choice. The **Cancel** button closes the dialog and discards the pending selection without spending coins. Achievements scroll vertically inside their dialog, with the heading fixed. The leaderboard uses **Previous** and **Next**, with page sizes that adapt to screen height and orientation.
 
 The upbeat 126 BPM arcade soundtrack is on by default. Its bundled audio is loaded and decoded before Play is enabled, so the Play gesture schedules music immediately without composing it during gameplay. It combines drums, bass, and a bright melody, with normalized loudness for phone speakers and bounded peaks. It pauses with the game and fades out on game over or return home. In **Settings → Background music**, you can turn it off independently of sound effects; your preference is saved for future sessions.
 
@@ -32,11 +32,11 @@ npm run preview     # serve the production bundle
 
 The browser tests use `/usr/bin/chromium` by default. Set `CHROMIUM_PATH` to a locally installed Chromium binary elsewhere. They use software WebGL, exercise real inputs and rigid-body simulation, and never replace physics or scores with mocked state.
 
-## Play, progression, and selection update — 1.2.0
+## Play, progression, and selection — 1.2.1
 
 - **Free:** Mixed mode, Classic coupe, Trail SUV, Pickup truck; Realistic Forest, Night City, Outer Space.
 - **150 coins:** Sport GT or Snow Mountains. **250 coins:** City bus or Desert. **350 coins:** Field tractor or Beach. Each is a separate permanent unlock using earned in-game coins.
-- **Done** confirms the pending vehicle/place selection and purchases it once if locked. Closing with **×**, Escape, or Back cancels without spending coins. Purchases and choices persist after reopening.
+- Vehicle/place selectors have **Cancel** on the left and **Done** on the right, separated by 10px. The × header icon is removed on these screens. **Done** confirms the pending vehicle/place selection and purchases it once if locked. Using **Cancel**, Escape, or Back cancels without spending coins. Purchases and choices persist after reopening.
 - **Settings → Reset game** opens a confirmation alert. Confirming clears coins, purchases, records, achievements, selections, and settings, returns home with only the free choices, and saves the fresh state. Cancelling leaves the save intact. Other apps' browser storage is untouched.
 - Existing balances and purchased vehicles are preserved. Old saves without place ownership start with the three free places; a formerly selected paid place changes to Forest until unlocked.
 - The original soundtrack is preloaded; its playback source starts in the Play handler. Crash buffers are also prepared before gameplay. A first crash can be scheduled while Android's audio context resumes, instead of being discarded while suspended.

@@ -386,10 +386,13 @@ button, select { touch-action: manipulation; }
 }
 
 /* Selection actions remain outside the scrolling collection. */
-.selection-footer { display: flex; align-items: center; gap: 12px; border-top: 1px solid var(--line); margin-top: 12px; padding-top: 12px; }
-.selection-footer p { flex: 1; min-width: 0; font-size: 11px; line-height: 1.4; margin: 0; color: #75836a; }
+.selection-footer { display: flex; flex-direction: column; align-items: stretch; gap: 8px; border-top: 1px solid var(--line); margin-top: 12px; padding-top: 12px; }
+.selection-footer p { min-width: 0; font-size: 11px; line-height: 1.4; margin: 0; color: #75836a; }
 .selection-footer p .icon { width: 14px; height: 14px; }
-.selection-done { min-width: 118px; justify-content: center; gap: 8px; padding: 10px 22px; border-radius: 12px; }
+.selection-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.selection-actions button { min-width: 0; min-height: 44px; justify-content: center; padding: 10px 16px; border-radius: 12px; font-weight: 600; }
+.selection-cancel { background: #e9eedf; border: 1px solid #d7dfcb; color: #48643a; }
+.selection-cancel:hover { background: #dde7cf; }
 .selection-done .icon { width: 18px; height: 18px; }
 .reset-game-button { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 44px; flex-shrink: 0; border: 1px solid #d9b6a5; border-radius: 10px; color: #8d4132; background: #f5e9e1; margin-top: auto; }
 .reset-game-button .icon { width: 17px; height: 17px; }
@@ -407,3 +410,5 @@ button, select { touch-action: manipulation; }
   .modal[data-screen="settings"] .setting-row:last-child { grid-column: 1 / -1; }
   .reset-game-button { margin-top: auto; }
 }
+
+.achievements-grid.selection-scroll { grid-auto-rows: minmax(112px, max-content); }

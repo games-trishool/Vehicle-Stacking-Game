@@ -99,7 +99,7 @@ function start(){
  runPreviousBest=state.best;sessionBestCombo=0;runRecorded=false;game.start();game.resize();
 }
 function home(reset=false){closeDialog(false);document.body.classList.remove('in-game');$('game-hud').hidden=true;if(reset)game?.reset();else game?.showHome();game?.resize();renderState();}
-function modalHeader(eyebrow:string,title:string,copy:string){return `<div class="modal-heading"><div><span class="eyebrow">${eyebrow}</span><h2>${title}</h2><p>${copy}</p></div><button class="icon-button close-modal" data-action="close" aria-label="Close dialog">${icon('close')}</button></div>`;}
+function modalHeader(eyebrow:string,title:string,copy:string,showClose=true){return `<div class="modal-heading"><div><span class="eyebrow">${eyebrow}</span><h2>${title}</h2><p>${copy}</p></div>${showClose?`<button class="icon-button close-modal" data-action="close" aria-label="Close dialog">${icon('close')}</button>`:''}</div>`;}
 function openDialog(kind:string){
  if(kind!==dialogKind){pendingVehicle=state.selectedVehicle;pendingWorld=state.selectedWorld;}
  game?.setOverlayOpen(true);
@@ -107,13 +107,13 @@ function openDialog(kind:string){
  const scrollTop=kind===dialogKind?($('modal-content').querySelector('.selection-scroll')?.scrollTop||0):0;
  dialogKind=kind;let content='';
  if(kind==='vehicles'||kind==='garage'){
-   const isGarage=kind==='garage';content=modalHeader(isGarage?'GOOD THINGS COME WITH WHEELS':'YOUR TOWER. YOUR WAY.',isGarage?'The garage.':'Pick your ride.',isGarage?'Earn coins with every landing. Find your next favorite.':'Stick with a favorite, or keep the climb surprising.');
+   const isGarage=kind==='garage';content=modalHeader(isGarage?'GOOD THINGS COME WITH WHEELS':'YOUR TOWER. YOUR WAY.',isGarage?'The garage.':'Pick your ride.',isGarage?'Earn coins with every landing. Find your next favorite.':'Stick with a favorite, or keep the climb surprising.',false);
    content+=`<div class="modal-meta"><span>${state.unlocked.length-1} / 6 vehicles unlocked</span><span class="coin-balance">${icon('coin')} ${state.coins} coins</span></div><div class="vehicle-grid">`;
    for(const v of VEHICLES){const owned=state.unlocked.includes(v.id),selected=pendingVehicle===v.id;content+=`<button class="vehicle-card ${selected?'selected':''} ${!owned?'locked':''} ${v.id==='mixed'?'mixed-card':''}" data-action="select-vehicle" data-id="${v.id}" aria-pressed="${selected}"><div class="vehicle-card-top"><span>${v.label}</span>${selected?`<span class="selected-check">${icon('check')}</span>`:!owned?icon('lock'):''}</div><div class="vehicle-render">${v.id==='mixed'?'<span class="mixed-spark spark-one">✦</span><span class="mixed-spark spark-two">✦</span>':''}<img src="${thumbs[v.id]||''}" alt="${v.name} 3D model" /></div><div class="vehicle-details"><h3>${v.name}</h3><p>${v.subtitle}</p><span class="vehicle-status">${selected?'SELECTED':owned?'READY TO STACK':`${icon('coin')} ${v.cost} · UNLOCK`}</span></div></button>`;}
    content+='</div>'+selectionFooter('vehicles');
  }
  if(kind==='worlds'){
-   content=modalHeader('A CHANGE OF SCENERY','Find your happy place.','Choose a place, then tap Done to save.');
+   content=modalHeader('A CHANGE OF SCENERY','Find your happy place.','Choose a place, then tap Done to save.',false);
    content+=`<div class="modal-meta"><span>${state.unlockedWorlds.length} / 6 places unlocked</span><span class="coin-balance">${icon('coin')} ${state.coins} coins</span></div><div class="world-grid">`;
    for(const w of WORLDS){const selected=pendingWorld===w.id,owned=state.unlockedWorlds.includes(w.id);content+=`<button class="world-card ${selected?'selected':''} ${!owned?'locked':''}" data-action="select-world" data-id="${w.id}" aria-pressed="${selected}"><div class="world-art">${worldArt(w.id)}<span>${w.tag}</span>${selected?`<i>${icon('check')}</i>`:!owned?`<i>${icon('lock')}</i>`:''}</div><div><h3>${w.name}</h3><p>${w.subtitle}</p><span class="vehicle-status">${selected?'SELECTED':owned?'READY TO EXPLORE':`${icon('coin')} ${w.cost} · UNLOCK`}</span></div></button>`;}
    content+='</div>'+selectionFooter('worlds');
@@ -144,7 +144,7 @@ function openDialog(kind:string){
 function selectionFooter(kind:'vehicles'|'worlds'){
  const world=kind==='worlds',choice=world?WORLDS.find(w=>w.id===pendingWorld)!:VEHICLES.find(v=>v.id===pendingVehicle)!;
  const owned=world?state.unlockedWorlds.includes(choice.id):state.unlocked.includes(choice.id);
- return `<div class="selection-footer"><p>${owned?'Tap Done to save. × cancels your changes.':`${icon('coin')} Unlock for ${choice.cost} coins when you tap Done.`}</p><button class="primary-button selection-done" data-action="selection-done">${icon('check')} Done</button></div>`;
+ return `<div class="selection-footer">${owned?'':`<p>Unlock for ${choice.cost} coins when you tap Done.</p>`}<div class="selection-actions"><button class="selection-cancel" data-action="close">Cancel</button><button class="primary-button selection-done" data-action="selection-done">Done</button></div></div>`;
 }
 function layoutDialog(page=0){
  const focusAction=(document.activeElement as HTMLElement|null)?.dataset.action;
@@ -152,20 +152,14 @@ function layoutDialog(page=0){
  const grid=content.querySelector<HTMLElement>('.vehicle-grid,.world-grid,.achievements-grid,.ranking-table');
  if(!grid)return;
  const cards=Array.from(grid.querySelectorAll<HTMLElement>('.vehicle-card,.world-card,.achievement-card,.ranking-row'));
- if(grid.matches('.vehicle-grid,.world-grid')){
+ if(grid.matches('.vehicle-grid,.world-grid,.achievements-grid')){
    grid.classList.add('selection-scroll');grid.style.removeProperty('grid-template-rows');
-   grid.tabIndex=0;grid.setAttribute('role','region');grid.setAttribute('aria-label',grid.classList.contains('vehicle-grid')?'Vehicles':'Places');
+   grid.tabIndex=0;grid.setAttribute('role','region');grid.setAttribute('aria-label',grid.classList.contains('vehicle-grid')?'Vehicles':grid.classList.contains('world-grid')?'Places':'Achievements');
    cards.forEach(card=>card.hidden=false);return;
  }
- const short=innerHeight<650,columns=innerWidth<=760?2:3;
- const achievements=grid.classList.contains('achievements-grid'),ranking=grid.classList.contains('ranking-table');
- const count=ranking?(short?2:5):achievements?(short?2:innerWidth<=760?3:6):columns*(short?1:2);
+ const count=innerHeight<650?2:5;
  const pages=Math.max(1,Math.ceil(cards.length/count));dialogPage=Math.max(0,Math.min(page,pages-1));
  cards.forEach((card,index)=>card.hidden=index<dialogPage*count||index>=(dialogPage+1)*count);
- if(!ranking){
-   const cols=achievements?(innerWidth<=760?1:2):columns;
-   grid.style.gridTemplateRows=`repeat(${Math.max(1,Math.ceil(Math.min(count,cards.length-dialogPage*count)/cols))},minmax(0,1fr))`;
- }
  if(pages>1){
    const pager=document.createElement('nav');pager.className='dialog-pager';pager.setAttribute('aria-label','Selection pages');
    pager.innerHTML=`<button data-action="page-prev" aria-label="Previous page" ${dialogPage===0?'disabled':''}>${icon('arrow')}<span>Previous</span></button><span aria-live="polite">${dialogPage+1} / ${pages}</span><button data-action="page-next" aria-label="Next page" ${dialogPage===pages-1?'disabled':''}><span>Next</span>${icon('arrow')}</button>`;
