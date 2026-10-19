@@ -21,6 +21,8 @@ The phone home screen keeps the live 3D preview, **Let’s play**, **Change vehi
 
 The upbeat 126 BPM arcade soundtrack is on by default and starts when you choose **Let’s play**. It combines drums, bass, and a bright melody, with normalized loudness for phone speakers and bounded peaks. It pauses with the game and fades out on game over or return home. In **Settings → Background music**, you can turn it off independently of sound effects; your preference is saved for future sessions.
 
+Version **1.0.1** caps the home preview at 30 FPS and gameplay rendering at 60 FPS, stops rendering behind menus and while inactive, and batches repeated scenery. These are frame budgets; actual FPS depends on the device. Auto graphics adapts to sustained gameplay load, while High and Battery saver remain explicit choices. See [performance measurements and the Pixel 8 test checklist](docs/PERFORMANCE.md).
+
 ```bash
 npm run build       # strict TypeScript validation and production bundle
 npm test            # progression, purchases, persistence, reward rules

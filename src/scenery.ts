@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 export type WorldId='forest'|'city'|'space'|'snow'|'desert'|'beach';
 const COLORS:Record<WorldId,{sky:number;fog:number;ground:number;sun:number;ambient:number}>={
  forest:{sky:0xcbd9cf,fog:0xcbd9ba,ground:0x718358,sun:0xffe6b4,ambient:0xdfeacb},
@@ -10,8 +11,21 @@ const COLORS:Record<WorldId,{sky:number;fog:number;ground:number;sun:number;ambi
 };
 function random(seed:number){return()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
 function mat(color:number,roughness=.85){return new THREE.MeshStandardMaterial({color,roughness});}
+type InstanceTransform={position:THREE.Vector3;scale:THREE.Vector3;rotation?:THREE.Euler};
 function add(g:THREE.Group,geo:THREE.BufferGeometry,m:THREE.Material|THREE.Material[],x=0,y=0,z=0){const mesh=new THREE.Mesh(geo,m);mesh.position.set(x,y,z);mesh.castShadow=true;mesh.receiveShadow=true;g.add(mesh);return mesh;}
-function batch(g:THREE.Group,geo:THREE.BufferGeometry,m:THREE.Material,transforms:{position:THREE.Vector3;scale:THREE.Vector3;rotation?:THREE.Euler}[],shadows=true){const mesh=new THREE.InstancedMesh(geo,m,transforms.length);const dummy=new THREE.Object3D();transforms.forEach((v,i)=>{dummy.position.copy(v.position);dummy.scale.copy(v.scale);dummy.rotation.copy(v.rotation||new THREE.Euler());dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix);});mesh.castShadow=shadows;mesh.receiveShadow=true;g.add(mesh);return mesh;}
+function batch(g:THREE.Group,geo:THREE.BufferGeometry,m:THREE.Material,transforms:InstanceTransform[],shadows=true){const mesh=new THREE.InstancedMesh(geo,m,transforms.length);const dummy=new THREE.Object3D();transforms.forEach((v,i)=>{dummy.position.copy(v.position);dummy.scale.copy(v.scale);dummy.rotation.copy(v.rotation||new THREE.Euler());dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix);});mesh.castShadow=shadows;mesh.receiveShadow=true;g.add(mesh);return mesh;}
+function batchSpatial(g:THREE.Group,geo:THREE.BufferGeometry,m:THREE.Material,transforms:InstanceTransform[],cellSize=16){
+ const cells=new Map<string,InstanceTransform[]>();
+ for(const transform of transforms){const key=`${Math.floor(transform.position.x/cellSize)},${Math.floor(transform.position.z/cellSize)}`;if(!cells.has(key))cells.set(key,[]);cells.get(key)!.push(transform);}
+ for(const cell of cells.values())batch(g,geo,m,cell);
+}
+function mergeStatic(group:THREE.Group,material:THREE.Material){
+ const parts:THREE.BufferGeometry[]=[];
+ for(const mesh of [...group.children])if(mesh instanceof THREE.Mesh){mesh.updateMatrix();parts.push(mesh.geometry.clone().applyMatrix4(mesh.matrix));mesh.geometry.dispose();group.remove(mesh);}
+ if(!parts.length)return;
+ const geometry=mergeGeometries(parts);parts.forEach(part=>part.dispose());
+ if(geometry)add(group,geometry,material);
+}
 function pineTexture(snow:boolean){
  const canvas=document.createElement('canvas');canvas.width=512;canvas.height=1024;const ctx=canvas.getContext('2d')!,rand=random(1192);
  ctx.lineCap='round';ctx.strokeStyle='#5b5643';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(256,1000);ctx.lineTo(256,18);ctx.stroke();
@@ -59,7 +73,8 @@ function woodTexture(){
  const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;texture.wrapS=texture.wrapT=THREE.RepeatWrapping;texture.anisotropy=8;return texture;
 }
 export class Scenery {
- group=new THREE.Group(); clouds:THREE.Group[]=[]; animated:THREE.Object3D[]=[]; water?:THREE.Mesh;sun:THREE.DirectionalLight;sky:THREE.HemisphereLight;
+ group=new THREE.Group(); clouds:THREE.Group[]=[]; animated:THREE.Object3D[]=[]; localLights:THREE.PointLight[]=[];water?:THREE.Mesh;sun:THREE.DirectionalLight;sky:THREE.HemisphereLight;
+ private waterTime=0;
  constructor(public scene:THREE.Scene,public id:WorldId){
    const c=COLORS[id];scene.background=new THREE.Color(c.sky);scene.fog=new THREE.Fog(c.fog,28,id==='space'?180:105);
    this.sun=new THREE.DirectionalLight(c.sun,id==='city'?2:3.1);this.sun.position.set(-16,29,13);this.sun.castShadow=true;this.sun.shadow.mapSize.set(2048,2048);this.sun.shadow.camera.left=-18;this.sun.shadow.camera.right=18;this.sun.shadow.camera.top=20;this.sun.shadow.camera.bottom=-20;this.sun.shadow.camera.far=75;this.sun.shadow.bias=-.00025;this.sun.shadow.normalBias=.035;this.group.add(this.sun,this.sun.target);
@@ -76,8 +91,13 @@ export class Scenery {
    if(id==='beach')this.beach(rand);
    if(id!=='city'&&id!=='space'){
      this.mountains(rand,id==='snow',id==='desert');
-     for(let i=0;i<12;i++){const cloud=new THREE.Group();for(let j=0;j<5;j++){const puff=add(cloud,new THREE.SphereGeometry(1,12,8),new THREE.MeshBasicMaterial({color:0xf9f7e9,transparent:true,opacity:.42,depthWrite:false}),j*2-4,(j%2)*.45,0);puff.scale.set(3,1,1.5);puff.castShadow=false;puff.receiveShadow=false;}cloud.position.set((rand()-.5)*130,24+rand()*17,-40-rand()*30);cloud.scale.setScalar(1+rand()*1.8);this.clouds.push(cloud);this.group.add(cloud);}
+     const puffs=Array.from({length:5},(_,j)=>new THREE.SphereGeometry(1,12,8).scale(3,1,1.5).translate(j*2-4,(j%2)*.45,0));
+     const cloudGeometry=mergeGeometries(puffs)!;puffs.forEach(puff=>puff.dispose());
+     const cloudMaterial=new THREE.MeshBasicMaterial({color:0xf9f7e9,transparent:true,opacity:.42,depthWrite:false});
+     for(let i=0;i<12;i++){const cloud=new THREE.Group();const puff=add(cloud,cloudGeometry,cloudMaterial);puff.castShadow=false;puff.receiveShadow=false;cloud.position.set((rand()-.5)*130,24+rand()*17,-40-rand()*30);cloud.scale.setScalar(1+rand()*1.8);this.clouds.push(cloud);this.group.add(cloud);}
    }
+   const moving=new Set<THREE.Object3D>([this.sun,this.sun.target,...this.clouds,...this.animated]);
+   this.group.traverse(object=>{if(!moving.has(object)){object.updateMatrix();object.matrixAutoUpdate=false;}});
  }
  platform(){
    const grain=woodTexture(),rimGrain=grain.clone();rimGrain.rotation=Math.PI/2;rimGrain.repeat.set(3,.25);
@@ -87,7 +107,8 @@ export class Scenery {
    const surface=add(this.group,new THREE.CylinderGeometry(4.17,4.17,.045,80),[rim,deck,rim],0,.455,0);surface.name='wooden-platform';
    const brass=new THREE.MeshStandardMaterial({color:0xc49a57,metalness:.62,roughness:.34});
    const ring=add(this.group,new THREE.TorusGeometry(4.04,.022,6,80),brass,0,.485,0);ring.rotation.x=Math.PI/2;
-   for(let i=0;i<12;i++){const a=i*Math.PI/6;add(this.group,new THREE.CylinderGeometry(.035,.035,.009,12),brass,Math.cos(a)*3.81,.486,Math.sin(a)*3.81);}
+   const studs=Array.from({length:12},(_,i)=>({position:new THREE.Vector3(Math.cos(i*Math.PI/6)*3.81,.486,Math.sin(i*Math.PI/6)*3.81),scale:new THREE.Vector3(1,1,1)}));
+   batch(this.group,new THREE.CylinderGeometry(.035,.035,.009,12),brass,studs);
  }
  forest(rand:()=>number,snow:boolean){
    const trunks: any[]=[],foliage:any[]=[],tips:any[]=[],grass:any[]=[],rocks:any[]=[];
@@ -127,30 +148,39 @@ export class Scenery {
    }
    batch(this.group,new THREE.BoxGeometry(1,1,1),mat(0x30384b),buildings);
    batch(this.group,new THREE.BoxGeometry(1,1,1),new THREE.MeshBasicMaterial({color:0xf3ce8f}),windows,false);
-   for(let i=0;i<8;i++){const a=i*Math.PI/4;const light=new THREE.PointLight(i%2?0xf775b3:0x65bdce,12,15);light.position.set(Math.cos(a)*11,3,Math.sin(a)*11);this.group.add(light);const lamp=add(this.group,new THREE.SphereGeometry(.15,8,8),new THREE.MeshBasicMaterial({color:i%2?0xf775b3:0x65bdce}),light.position.x,4.5,light.position.z);add(this.group,new THREE.CylinderGeometry(.04,.08,4.5,8),mat(0x262d38),lamp.position.x,2.2,lamp.position.z);}
+   for(let i=0;i<8;i++){const a=i*Math.PI/4;const light=new THREE.PointLight(i%2?0xf775b3:0x65bdce,12,15);light.position.set(Math.cos(a)*11,3,Math.sin(a)*11);this.localLights.push(light);this.group.add(light);const lamp=add(this.group,new THREE.SphereGeometry(.15,8,8),new THREE.MeshBasicMaterial({color:i%2?0xf775b3:0x65bdce}),light.position.x,4.5,light.position.z);add(this.group,new THREE.CylinderGeometry(.04,.08,4.5,8),mat(0x262d38),lamp.position.x,2.2,lamp.position.z);}
  }
  space(rand:()=>number){
    const vertices=[];for(let i=0;i<1800;i++){const a=rand()*6.28,b=rand()*Math.PI;vertices.push(Math.cos(a)*Math.sin(b)*140,Math.abs(Math.cos(b))*140+10,Math.sin(a)*Math.sin(b)*140);}
    const stars=new THREE.Points(new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(vertices,3)),new THREE.PointsMaterial({color:0xd6e4ff,size:.3,sizeAttenuation:true}));this.group.add(stars);this.animated.push(stars);
    const planet=add(this.group,new THREE.SphereGeometry(13,40,24),mat(0x7973b0),-36,32,-65);planet.castShadow=false;
    const ring=add(this.group,new THREE.RingGeometry(18,24,64),new THREE.MeshBasicMaterial({color:0xb3a1d0,side:THREE.DoubleSide,transparent:true,opacity:.55}),-36,32,-65);ring.rotation.set(1.1,.2,.3);
-   for(let i=0;i<35;i++){const a=rand()*6.28,r=12+rand()*42;add(this.group,new THREE.DodecahedronGeometry(.7+rand()*2),mat(0x5b6176),Math.cos(a)*r,.4,Math.sin(a)*r);}
+   const asteroids=Array.from({length:35},()=>{const a=rand()*6.28,r=12+rand()*42,size=.7+rand()*2;return{position:new THREE.Vector3(Math.cos(a)*r,.4,Math.sin(a)*r),scale:new THREE.Vector3(size,size,size)};});
+   batchSpatial(this.group,new THREE.DodecahedronGeometry(1),mat(0x5b6176),asteroids);
  }
  desert(rand:()=>number){
-   for(let i=0;i<18;i++){const a=rand()*6.28,r=19+rand()*55;const hill=add(this.group,new THREE.SphereGeometry(1,32,16),mat(i%2?0xd2aa76:0xc19462),Math.cos(a)*r,-2,Math.sin(a)*r);hill.scale.set(12+rand()*10,4+rand()*3,12+rand()*15);}
-   for(let i=0;i<35;i++){const a=rand()*6.28,r=9+rand()*40,x=Math.cos(a)*r,z=Math.sin(a)*r,h=1+rand()*2;const cactusMat=mat(0x6d8461);add(this.group,new THREE.CapsuleGeometry(.19,h,4,8),cactusMat,x,h/2+.3,z);const arm=add(this.group,new THREE.CapsuleGeometry(.11,.8,4,8),cactusMat,x+.4,h*.6,z);arm.rotation.z=Math.PI/2;add(this.group,new THREE.CapsuleGeometry(.12,.45,4,8),cactusMat,x+.8,h*.6+.3,z);}
+   const dunes:[InstanceTransform[],InstanceTransform[]]=[[],[]];
+   for(let i=0;i<18;i++){const a=rand()*6.28,r=19+rand()*55;dunes[i%2].push({position:new THREE.Vector3(Math.cos(a)*r,-2,Math.sin(a)*r),scale:new THREE.Vector3(12+rand()*10,4+rand()*3,12+rand()*15)});}
+   dunes.forEach((transforms,index)=>batchSpatial(this.group,new THREE.SphereGeometry(1,32,16),mat(index?0xd2aa76:0xc19462),transforms));
+   const cactusMat=mat(0x6d8461),cacti=new Map<string,THREE.Group>();
+   for(let i=0;i<35;i++){const a=rand()*6.28,r=9+rand()*40,x=Math.cos(a)*r,z=Math.sin(a)*r,h=1+rand()*2,key=`${Math.floor(x/16)},${Math.floor(z/16)}`;if(!cacti.has(key)){const group=new THREE.Group();cacti.set(key,group);this.group.add(group);}const group=cacti.get(key)!;add(group,new THREE.CapsuleGeometry(.19,h,4,8),cactusMat,x,h/2+.3,z);const arm=add(group,new THREE.CapsuleGeometry(.11,.8,4,8),cactusMat,x+.4,h*.6,z);arm.rotation.z=Math.PI/2;add(group,new THREE.CapsuleGeometry(.12,.45,4,8),cactusMat,x+.8,h*.6+.3,z);}
+   cacti.forEach(group=>mergeStatic(group,cactusMat));
  }
  beach(rand:()=>number){
    this.water=add(this.group,new THREE.PlaneGeometry(180,85,30,20),new THREE.MeshStandardMaterial({color:0x4faba9,metalness:.6,roughness:.22}),0,.025,-54);this.water.rotation.x=-Math.PI/2;this.water.castShadow=false;
-   for(let i=0;i<24;i++){const a=rand()*Math.PI,r=13+rand()*36,x=Math.cos(a)*r,z=Math.sin(a)*r,h=5+rand()*4;if(x*.62+z*.77>0&&Math.abs(x*.77-z*.62)<10)continue;const trunk=add(this.group,new THREE.CylinderGeometry(.13,.3,h,9),mat(0x97806a),x,h/2,z);trunk.rotation.z=.12;
-     for(let j=0;j<8;j++){const leaf=add(this.group,new THREE.SphereGeometry(1,12,6),mat(0x638368),x+Math.cos(j*Math.PI/4)*1.8,h-.3,z+Math.sin(j*Math.PI/4)*1.8);leaf.scale.set(.45,.12,2.6);leaf.rotation.set(.27,j*Math.PI/4,0);}
+   const trunks:InstanceTransform[]=[],leaves:InstanceTransform[]=[];
+   for(let i=0;i<24;i++){const a=rand()*Math.PI,r=13+rand()*36,x=Math.cos(a)*r,z=Math.sin(a)*r,h=5+rand()*4;if(x*.62+z*.77>0&&Math.abs(x*.77-z*.62)<10)continue;trunks.push({position:new THREE.Vector3(x,h/2,z),scale:new THREE.Vector3(1,h,1),rotation:new THREE.Euler(0,0,.12)});
+     for(let j=0;j<8;j++)leaves.push({position:new THREE.Vector3(x+Math.cos(j*Math.PI/4)*1.8,h-.3,z+Math.sin(j*Math.PI/4)*1.8),scale:new THREE.Vector3(.45,.12,2.6),rotation:new THREE.Euler(.27,j*Math.PI/4,0)});
    }
+   batchSpatial(this.group,new THREE.CylinderGeometry(.13,.3,1,9),mat(0x97806a),trunks,12);
+   batchSpatial(this.group,new THREE.SphereGeometry(1,12,6),mat(0x638368),leaves,12);
  }
+ setLightBudget(count:number){const order=[0,1,4,5,2,3,6,7];this.localLights.forEach((light,index)=>light.visible=order.indexOf(index)<count);}
  update(dt:number,height:number){
    for(const c of this.clouds){c.position.x+=dt*.28;if(c.position.x>85)c.position.x=-85;}
    this.sun.target.position.y=height*.65;this.sun.position.y=29+height*.65;
-   if(this.water){const p=this.water.geometry.attributes.position;for(let i=0;i<p.count;i++)p.setZ(i,Math.sin(p.getX(i)*.2+performance.now()*.0007)*.1);p.needsUpdate=true;}
+   if(this.water&&dt>0){this.waterTime+=dt;const p=this.water.geometry.attributes.position;for(let i=0;i<p.count;i++)p.setZ(i,Math.sin(p.getX(i)*.2+this.waterTime*.7)*.1);p.needsUpdate=true;}
    for(const o of this.animated)o.rotation.y+=dt*.006;
  }
- dispose(){this.scene.remove(this.group);const geos=new Set<THREE.BufferGeometry>(),mats=new Set<THREE.Material>();this.group.traverse(o=>{if(o instanceof THREE.Mesh||o instanceof THREE.Points){geos.add(o.geometry);(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>mats.add(m));}if(o instanceof THREE.Light)o.dispose();});geos.forEach(g=>g.dispose());mats.forEach(m=>{if(m instanceof THREE.MeshStandardMaterial)m.map?.dispose();m.dispose();});}
+ dispose(){this.scene.remove(this.group);const geos=new Set<THREE.BufferGeometry>(),mats=new Set<THREE.Material>();this.group.traverse(o=>{if(o instanceof THREE.Mesh||o instanceof THREE.Points){geos.add(o.geometry);(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>mats.add(m));}if(o instanceof THREE.InstancedMesh)o.dispose();if(o instanceof THREE.Light)o.dispose();});geos.forEach(g=>g.dispose());mats.forEach(m=>{if(m instanceof THREE.MeshStandardMaterial)m.map?.dispose();m.dispose();});}
 }

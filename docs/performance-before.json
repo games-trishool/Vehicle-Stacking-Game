@@ -1,0 +1,38 @@
+{
+  "source": "d824327",
+  "viewport": "390x844",
+  "quality": "low",
+  "renderer": "Chromium SwiftShader",
+  "results": [
+    {
+      "world": "forest",
+      "drawCalls": 68,
+      "triangles": 90926
+    },
+    {
+      "world": "city",
+      "drawCalls": 63,
+      "triangles": 84180
+    },
+    {
+      "world": "space",
+      "drawCalls": 64,
+      "triangles": 64572
+    },
+    {
+      "world": "snow",
+      "drawCalls": 62,
+      "triangles": 73074
+    },
+    {
+      "world": "desert",
+      "drawCalls": 84,
+      "triangles": 70564
+    },
+    {
+      "world": "beach",
+      "drawCalls": 58,
+      "triangles": 63730
+    }
+  ]
+}

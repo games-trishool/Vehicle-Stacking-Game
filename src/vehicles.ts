@@ -107,6 +107,6 @@ export function createVehicle(id:VehicleId,color?:number){
   const batches=new Map<THREE.Material,THREE.BufferGeometry[]>();
   g.traverse(child=>{if(child instanceof THREE.Mesh){const m=child.material as THREE.Material;if(!batches.has(m))batches.set(m,[]);batches.get(m)!.push((child.geometry.index?child.geometry.toNonIndexed():child.geometry.clone()).applyMatrix4(child.matrixWorld));}});
   const optimized=new THREE.Group();optimized.name=id;optimized.userData={id,spec};
-  for(const [mat,geometries] of batches){const merged=mergeGeometries(geometries);geometries.forEach(geo=>geo.dispose());if(merged){const part=new THREE.Mesh(merged,mat);part.castShadow=true;part.receiveShadow=true;optimized.add(part);}}
+  for(const [mat,geometries] of batches){const merged=mergeGeometries(geometries);geometries.forEach(geo=>geo.dispose());if(merged){const part=new THREE.Mesh(merged,mat);part.castShadow=true;part.receiveShadow=true;part.matrixAutoUpdate=false;optimized.add(part);}}
   models.set(modelKey,optimized);return optimized.clone();
 }

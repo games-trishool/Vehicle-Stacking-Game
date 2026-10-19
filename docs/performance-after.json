@@ -1,0 +1,39 @@
+{
+  "source": "d824327-dirty",
+  "viewport": "390x844",
+  "quality": "low",
+  "renderer": "Chromium SwiftShader",
+  "results": [
+    {
+      "world": "forest",
+      "drawCalls": 54,
+      "triangles": 92438
+    },
+    {
+      "world": "city",
+      "drawCalls": 52,
+      "triangles": 84180
+    },
+    {
+      "world": "space",
+      "drawCalls": 51,
+      "triangles": 64608
+    },
+    {
+      "world": "snow",
+      "drawCalls": 52,
+      "triangles": 73914
+    },
+    {
+      "world": "desert",
+      "drawCalls": 61,
+      "triangles": 76180
+    },
+    {
+      "world": "beach",
+      "drawCalls": 49,
+      "triangles": 65410
+    }
+  ],
+  "build": "1.0.1 / Android version code 2"
+}

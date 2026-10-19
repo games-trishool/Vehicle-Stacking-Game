@@ -12,7 +12,7 @@ if(process.argv.includes('--help')){
  console.log('Usage: node scripts/sign-aab.mjs [unsigned.aab] [signed.aab]\nRequires a JDK (keytool and jarsigner); Android Studio includes one.\nThe prompts can create a new upload key or use your existing upload key.');
  process.exit(0);
 }
-const input=resolve(process.argv[2]||fileURLToPath(new URL('../releases/Stack-Vechiles-1.0-unsigned.aab',import.meta.url)));
+const input=resolve(process.argv[2]||fileURLToPath(new URL('../releases/Stack-Vechiles-1.0.1-unsigned.aab',import.meta.url)));
 const output=resolve(process.argv[3]||join(dirname(input),basename(input).replace(/(?:-unsigned)?\.aab$/i,'-signed.aab')));
 if(!existsSync(input)){console.error(`Bundle not found: ${input}`);process.exit(1);}
 if(input===output||existsSync(output)){console.error('Choose a new output filename; an existing bundle will not be overwritten.');process.exit(1);}
@@ -46,9 +46,12 @@ const run=(name,args,capture=false)=>{
 };
 try{
  console.log('Stack Vechiles — local release signing\nKeep your upload keystore and passwords backed up privately.\n');
- const existing=/^y(?:es)?$/i.test(await ask('Do you already have an upload keystore for this app? [y/N]: '));
  const defaultKey=join(homedir(),'.stack-vechiles-signing','upload-keystore.p12');
- const keystore=resolve((await ask(existing?'Existing keystore path: ':`New keystore path [${defaultKey}]: `)).replace(/^"|"$/g,'')||defaultKey);
+ const reuseDefault=existsSync(defaultKey);
+ if(reuseDefault)console.log(`Existing upload keystore found: ${defaultKey}`);
+ const answer=await ask(`Do you already have an upload keystore for this app? ${reuseDefault?'[Y/n]':'[y/N]'}: `);
+ const existing=answer?/^y(?:es)?$/i.test(answer):reuseDefault;
+ const keystore=resolve((await ask(`${existing?'Existing':'New'} keystore path [${defaultKey}]: `)).replace(/^"|"$/g,'')||defaultKey);
  if(existing&&!existsSync(keystore))throw new Error('The existing keystore was not found.');
  if(!existing&&existsSync(keystore))throw new Error('A keystore already exists there. Run again and choose the existing-key option, or use a different path.');
  const alias=(await ask('Key alias [upload]: '))||'upload';
