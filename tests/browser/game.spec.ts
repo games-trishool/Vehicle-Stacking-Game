@@ -225,3 +225,21 @@ test('home stays fixed, vehicle and place lists swipe vertically, and every coll
  }
 });
 });
+
+test('real collisions play crash audio and the saved sound switch silences it',async({page})=>{
+ test.setTimeout(180_000);await page.setViewportSize({width:480,height:640});
+ await page.addInitScript(()=>{const key='stackline.progress.v1';if(!localStorage.getItem(key))localStorage.setItem(key,JSON.stringify({version:1,selectedVehicle:'car',selectedWorld:'space',settings:{quality:'low',sound:true,music:false}}));});
+ await ready(page);await page.locator('.play-button').click();
+ await page.waitForFunction(()=>{const s=(window as any).stackline.snapshot();if(s.held&&Math.abs(s.heldX-s.topX)<.12){document.dispatchEvent(new KeyboardEvent('keydown',{code:'Space',bubbles:true}));return true;}return false;},{},{timeout:65000,polling:'raf'});
+ // Poll the actual output analyser during the physics collision, before the later bonus chime.
+ await page.waitForFunction(()=>{const s=(window as any).stackline.snapshot();return s.crashPlays>0&&s.effectsLevel>.01&&s.lastImpactSpeed>1.15;},{},{timeout:60000,polling:10});
+ const impact=await snapshot(page);expect(impact.musicPlaying).toBe(false);expect(impact.lastImpactSpeed).toBeGreaterThan(1.15);
+ await page.keyboard.press('Escape');await page.getByRole('button',{name:'Back to home'}).click();
+ await page.locator('[data-action="settings"]').click();await page.locator('[data-id="sound"]').click();
+ await expect(page.locator('[data-id="sound"]')).toHaveAttribute('aria-checked','false');await page.locator('[data-action="close"]').click();
+ await page.reload();await page.waitForFunction(()=>!!(window as any).stackline);
+ await page.locator('.play-button').click();
+ await page.waitForFunction(()=>{const s=(window as any).stackline.snapshot();if(s.held&&Math.abs(s.heldX-s.topX)<.12){document.dispatchEvent(new KeyboardEvent('keydown',{code:'Space',bubbles:true}));return true;}return false;},{},{timeout:65000,polling:'raf'});
+ await page.waitForFunction(()=>(window as any).stackline.snapshot().lastImpactSpeed>1.15,{},{timeout:60000});
+ expect(await snapshot(page)).toMatchObject({crashPlays:0,effectsLevel:0,musicPlaying:false});
+});

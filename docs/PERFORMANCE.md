@@ -1,4 +1,4 @@
-# Mobile performance update — 1.0.1
+# Mobile rendering measurements
 
 This pass targets mobile rendering cost and idle battery use. Pixel 8 is the owner's test device; physical-device measurements are still required. Browser checks run on Chromium's software WebGL renderer, so their frame rates are not Pixel 8 performance claims.
 
@@ -12,7 +12,7 @@ This pass targets mobile rendering cost and idle battery use. Pixel 8 is the own
 - On phones, Auto uses a 1024-pixel shadow map and up to four city point lights. High retains 2048-pixel shadows and all eight lights; Battery saver disables shadows and limits city point lights to two. Visible lamp models remain present at every setting.
 - Automatic reduction judges sustained gameplay frame intervals only. Home's 30 FPS budget and idle menu time do not trigger a quality downgrade.
 
-## Before and after
+## Historical before and after — 1.0.1
 
 The same six worlds were sampled at a 390×844 viewport, device scale 1, Battery saver, default mixed-vehicle home tower, and the same software renderer. Each result is the median of five frames after initialization. Raw reports are in [performance-before.json](performance-before.json) and [performance-after.json](performance-after.json). The baseline is source commit `d824327`; the after report is the working build of 1.0.1 before its commit.
 
@@ -38,12 +38,32 @@ node scripts/profile-rendering.mjs /tmp/stackline-rendering.json
 
 Set `CHROMIUM_PATH` for a different Chromium installation or `STACKLINE_URL` for a different preview URL. Do not run other software WebGL sessions at the same time when comparing costs.
 
+## Current vehicle-detail update — 1.1.0
+
+The original models now use curved body shells, sculpted wheel arches, clearcoat paint, tinted glass, tire tread, brake discs, and alloy rims. The [six-model report](vehicle-metrics-1.1.0.json) records 8–9 shared material batches and 16,472–18,472 triangles per vehicle. Templates and geometry remain cached across drops; nominal stacking dimensions and collision hulls are unchanged. Mirrors and trim extend beyond those approximate hulls.
+
+The [current rendering report](performance-1.1.0.json) repeats the same 390×844, Battery saver, mixed home-tower scenario. It records the working 1.1.0 build based on `b1e1f6a`, before committing this update.
+
+| World | Draw calls 1.0.1 | 1.1.0 | Triangles 1.0.1 | 1.1.0 |
+|---|---:|---:|---:|---:|
+| Forest | 54 | 54 | 92,438 | 115,446 |
+| Night City | 52 | 52 | 84,180 | 107,188 |
+| Outer Space | 51 | 51 | 64,608 | 87,616 |
+| Snow Mountains | 52 | 52 | 73,914 | 96,922 |
+| Desert | 61 | 61 | 76,180 | 99,188 |
+| Beach | 49 | 49 | 65,410 | 88,418 |
+
+Draw-call counts stay unchanged in this scenario. The added vehicle detail costs 23,008 additional triangles in the four-vehicle home tower. Clearcoat and tire bump shading also add GPU work that these counts do not measure. This is a fidelity/performance tradeoff, not an FPS improvement claim. Auto quality and the 30/60 FPS rendering budgets remain available; actual frame times, warmth, and battery usage require Pixel 8 testing.
+
+Crash audio uses three original buffers prepared on the first interaction and reused during play. Quiet resting contacts and duplicate events are filtered, so persistent physics contacts do not create continuous audio sources. Short music ducking lets impacts remain audible without permanently lowering the soundtrack volume.
+
 ## Pixel 8 checks before the next release
 
-1. Sign the 1.0.1 AAB with the registered upload key, upload version code 2 to the same app's Internal testing track, and update through Google Play. Keep the existing install so save preservation can be checked.
+1. Sign the 1.1.0 AAB with the registered upload key, upload version code 3 to the same app's Internal testing track, and update through Google Play. Keep the existing install so save preservation can be checked.
 2. Test Auto for at least ten minutes in Forest and Night City. Look for delayed taps, uneven camera motion, warmth, and audio interruptions. Compare Battery saver if the phone gets warm.
 3. Open menus, pause, leave the app, and return. The run should stay paused and music should remain stopped until **Keep climbing**. Repeat after locking the phone.
 4. Check a centered drop, a corner miss, a tall tower, and replay. Replay must clear the old tower and reset score and run coins.
-5. Force-close and reopen. Verify vehicle, place, music preference, coins, and high score. Check offline launch after the native app has been installed.
+5. Drop several different vehicles and compare soft and hard crashes with music on/off. Turn **Sound effects** off and verify impacts stay silent after reopening.
+6. Force-close and reopen. Verify vehicle, place, music preference, coins, and high score. Check offline launch after the native app has been installed.
 
 The original game and this game have separate Play testing requirements. Starting or completing a different game's closed test does not establish production access for this package.

@@ -6,6 +6,7 @@ import { Scenery, type WorldId } from './scenery';
 import { landingReward } from './store.mjs';
 import { GameAudio } from './audio';
 import { watchSurfaceContacts } from './physics.mjs';
+import { ImpactGate } from './impacts.mjs';
 
 export interface Landing {perfect:boolean;combo:number;score:number;stacks:number;height:number;coins:number;stability:number;}
 type Item={mesh:THREE.Group;body:CANNON.Body;id:VehicleId;height:number;landedY:number};
@@ -15,7 +16,7 @@ export class StackingGame {
   scenery:Scenery; audio=new GameAudio();mode:Mode='home';selectedVehicle='mixed';unlocked:VehicleId[]=['car','suv','truck'];worldId:WorldId='forest';
   items:Item[]=[];display=new THREE.Group();world?:CANNON.World;held?:THREE.Group;heldId:VehicleId='car';falling?:Item;guide?:THREE.Line;
   score=0;stacks=0;combo=0;coins=0;top=.49;stability=100;phase=0;elapsed=0;settled=0;contact=false;spawnTimer=0;slow=0;shake=0;lookY=4.2;quality='auto';reduceMotion=false;
-  groundContact=false;
+  groundContact=false;lastImpactSpeed=0;private impactGate=new ImpactGate();
   onLanding:(landing:Landing)=>void=()=>{};onEnd:(result:Landing)=>void=()=>{};onStability:(value:number)=>void=()=>{};
   private last=performance.now();private raf=0;private observer:ResizeObserver;private particles:{mesh:THREE.InstancedMesh;v:THREE.Vector3[];p:THREE.Vector3[];age:number}[]=[];
   private environmentTarget:THREE.WebGLRenderTarget;private targetLook=new THREE.Vector3();private cameraPosition=new THREE.Vector3();private particleDummy=new THREE.Object3D();
@@ -63,7 +64,7 @@ export class StackingGame {
   setVehicles(selected:string,unlocked:string[]){this.selectedVehicle=selected;this.unlocked=unlocked.filter(id=>id!=='mixed') as VehicleId[];if(this.mode==='home')this.showHome();}
   private pick():VehicleId{if(this.selectedVehicle!=='mixed')return this.selectedVehicle as VehicleId;return this.unlocked[Math.floor(Math.random()*this.unlocked.length)]||'car';}
   private clear(){
-    this.audio.stopMusic();
+    this.audio.stopMusic();this.impactGate.reset();this.lastImpactSpeed=0;
     for(const item of this.items)this.scene.remove(item.mesh);
     // A missed drop stays outside items so its fall can animate after game over.
     // Remove it before discarding the reference when starting another run or home.
@@ -99,6 +100,12 @@ export class StackingGame {
     body.addShape(new CANNON.Box(new CANNON.Vec3(spec.length*.47,.25,spec.width*.45)),new CANNON.Vec3(0,.66-spec.height/2,0));
     body.addShape(new CANNON.Box(new CANNON.Vec3(id==='bus'?spec.length*.48:id==='tractor'?.7:1.07,Math.max(.16,cabHeight/2),spec.width*.43)),new CANNON.Vec3(id==='tractor'?-.8:0,.91+Math.max(.32,cabHeight)/2-spec.height/2,0));
     for(const wx of [-spec.length*.3,spec.length*.3])for(const wz of [-spec.width*.44,spec.width*.44])body.addShape(new CANNON.Sphere(.36),new CANNON.Vec3(wx,.38-spec.height/2,wz));
+    body.addEventListener('collide',(event:{body:CANNON.Body;contact:CANNON.ContactEquation})=>{
+      if(body.type!==CANNON.Body.DYNAMIC||(this.mode!=='playing'&&this.mode!=='ended'))return;
+      const speed=Math.abs(event.contact.getImpactVelocityAlongNormal());
+      const strength=this.impactGate.accept(body.id,event.body.id,speed,performance.now()/1000);
+      if(strength){this.lastImpactSpeed=speed;this.audio.crash(strength);}
+    });
     const mesh=createVehicle(id);mesh.position.set(x,bottom,0);return{mesh,body,id,height:spec.height,landedY:bottom};
   }
   private spawn(){if(this.mode!=='playing')return;this.heldId=this.pick();this.held=createVehicle(this.heldId);this.held.position.set(-3,this.top+3.1,0);this.scene.add(this.held);this.phase=-Math.PI/2;this.elapsed=0;this.settled=0;this.contact=false;

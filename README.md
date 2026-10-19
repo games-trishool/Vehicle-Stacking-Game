@@ -21,16 +21,24 @@ The phone home screen keeps the live 3D preview, **Let’s play**, **Change vehi
 
 The upbeat 126 BPM arcade soundtrack is on by default and starts when you choose **Let’s play**. It combines drums, bass, and a bright melody, with normalized loudness for phone speakers and bounded peaks. It pauses with the game and fades out on game over or return home. In **Settings → Background music**, you can turn it off independently of sound effects; your preference is saved for future sessions.
 
-Version **1.0.1** caps the home preview at 30 FPS and gameplay rendering at 60 FPS, stops rendering behind menus and while inactive, and batches repeated scenery. These are frame budgets; actual FPS depends on the device. Auto graphics adapts to sustained gameplay load, while High and Battery saver remain explicit choices. See [performance measurements and the Pixel 8 test checklist](docs/PERFORMANCE.md).
+The rendering system caps the home preview at 30 FPS and gameplay rendering at 60 FPS, stops rendering behind menus and while inactive, and batches repeated scenery. These are frame budgets; actual FPS depends on the device. Auto graphics adapts to sustained gameplay load, while High and Battery saver remain explicit choices. See [performance measurements and the Pixel 8 test checklist](docs/PERFORMANCE.md).
 
 ```bash
 npm run build       # strict TypeScript validation and production bundle
-npm test            # progression, purchases, persistence, reward rules
+npm test            # progression, persistence, surface contacts, impact audio
 npm run test:e2e    # builds, then tests live 3D gameplay with Chromium
 npm run preview     # serve the production bundle
 ```
 
 The browser tests use `/usr/bin/chromium` by default. Set `CHROMIUM_PATH` to a locally installed Chromium binary elsewhere. They use software WebGL, exercise real inputs and rigid-body simulation, and never replace physics or scores with mocked state.
+
+## Vehicle and impact update — 1.1.0
+
+All six vehicles now have curved body shells, shaped wheel arches, reflective tinted glass, metallic clearcoat paint, panel seams, mirrors, tire tread, brake discs, and detailed alloy rims. The pickup has an open bed; the SUV has roof rails; the sports car has a rear spoiler; the bus has individual glazing and doors; the tractor has chunky agricultural tires and cab steps. These are original generated models, shared and batched into 8–9 draw calls per vehicle, with approximately 16,500–18,500 triangles each.
+
+![All six updated vehicle models](docs/vehicles-1.1.0.png)
+
+Collisions now play an original layered chassis thud, metal crunch, panel resonance, and loose rattle at the actual physics contact. Harder impacts play louder and deeper. Low-speed resting contacts and duplicate collision events stay quiet. Music briefly ducks under a crash; **Settings → Sound effects** still controls impacts independently of background music and saves the preference.
 
 ## Included
 
@@ -87,7 +95,8 @@ The master app icon is `public/icons/icon-512.png`. To regenerate its browser, A
 - `src/scenery.ts`: environment geometry, foliage and ground textures, lighting, atmospheric animation.
 - `src/main.ts` / `src/style.css` / `src/layout.css`: menus, HUD, fixed viewport layouts, scrollable selection dialogs, achievements, and progression integration.
 - `src/store.mjs`: versioned saves, vehicle costs, achievement definitions, reward rules, personal rankings.
-- `src/audio.ts`: synthesized effects and an original looping background score, triggered after player interaction with independent controls and pause/resume handling.
+- `src/impacts.mjs`: collision strength/cooldown rules and original crash waveform synthesis.
+- `src/audio.ts`: collision-driven effects and an original looping background score, triggered after player interaction with independent controls and pause/resume handling.
 - `tests/`: unit coverage plus live browser integration checks.
 
 ## Release work still required

@@ -1,5 +1,7 @@
+import { createCrashSamples } from './impacts.mjs';
 export class GameAudio {
   context?:AudioContext; master?:GainNode; enabled=true;musicEnabled=true;
+  crashPlays=0;private crashBuffers:AudioBuffer[]=[];private effectsAnalyser?:AnalyserNode;private effectsSamples=new Float32Array(512);
   private musicGain?:GainNode;private musicAnalyser?:AnalyserNode;private musicSamples=new Float32Array(256);
   private musicSource?:AudioBufferSourceNode;private musicVoice?:GainNode;
   private musicBuffer?:AudioBuffer;private musicRendering?:Promise<AudioBuffer>;
@@ -8,11 +10,12 @@ export class GameAudio {
     if(!this.enabled&&!this.musicEnabled)return;
     try{
       if(!this.context){
-        this.context=new AudioContext();this.master=this.context.createGain();this.master.gain.value=this.enabled?.24:0;this.master.connect(this.context.destination);
+        this.context=new AudioContext();this.master=this.context.createGain();this.master.gain.value=this.enabled?.24:0;this.effectsAnalyser=this.context.createAnalyser();this.effectsAnalyser.fftSize=512;this.master.connect(this.effectsAnalyser);this.effectsAnalyser.connect(this.context.destination);
         this.musicGain=this.context.createGain();this.musicGain.gain.value=.9;
         this.musicAnalyser=this.context.createAnalyser();this.musicAnalyser.fftSize=256;
         this.musicGain.connect(this.musicAnalyser);this.musicAnalyser.connect(this.context.destination);
       }
+      if(this.enabled)this.prepareCrashBuffers();
       void this.context.resume().catch(()=>{});
     }catch{/* Audio is optional on devices without an audio context. */}
   }
@@ -21,6 +24,32 @@ export class GameAudio {
     if(this.musicEnabled===value)return;
     this.musicEnabled=value;
     if(!value)this.stopMusicVoice();else if(this.musicRequested)this.startMusic();
+  }
+  get effectsLevel(){
+    if(!this.effectsAnalyser||this.context?.state!=='running')return 0;
+    this.effectsAnalyser.getFloatTimeDomainData(this.effectsSamples);
+    return Math.sqrt(this.effectsSamples.reduce((sum,sample)=>sum+sample*sample,0)/this.effectsSamples.length);
+  }
+  crash(strength:number){
+    if(!this.enabled||!this.context||!this.master||this.context.state!=='running')return;
+    this.prepareCrashBuffers();
+    const t=this.context.currentTime,source=this.context.createBufferSource(),gain=this.context.createGain();
+    source.buffer=this.crashBuffers[this.crashPlays%3];source.playbackRate.value=1.12-Math.max(0,Math.min(1,strength))*.28;
+    gain.gain.value=.8+Math.max(0,Math.min(1,strength))*2.5;
+    source.connect(gain);gain.connect(this.master);source.start(t);this.crashPlays++;
+    source.onended=()=>{source.disconnect();gain.disconnect();};
+    // Briefly leave room for the impact without lowering the saved music volume.
+    if(this.musicPlaying&&this.musicGain){
+      const volume=this.musicGain.gain;volume.cancelScheduledValues(t);volume.setValueAtTime(volume.value,t);
+      volume.linearRampToValueAtTime(.38,t+.012);volume.setValueAtTime(.38,t+.075);volume.linearRampToValueAtTime(.9,t+.30);
+    }
+  }
+  private prepareCrashBuffers(){
+    if(!this.context)return;
+    if(!this.crashBuffers.length)for(let variant=0;variant<3;variant++){
+      const samples=createCrashSamples(this.context.sampleRate,variant),buffer=this.context.createBuffer(1,samples.length,this.context.sampleRate);
+      buffer.copyToChannel(samples,0);this.crashBuffers.push(buffer);
+    }
   }
   get musicPlaying(){return !!this.musicSource&&this.context?.state==='running';}
   get musicLevel(){
@@ -126,7 +155,7 @@ export class GameAudio {
     }
     return buffer;
   }
-  dispose(){this.stopMusic();void this.context?.close().catch(()=>{});this.musicBuffer=undefined;}
+  dispose(){this.stopMusic();void this.context?.close().catch(()=>{});this.musicBuffer=undefined;this.crashBuffers=[];}
   tone(frequency:number,duration:number,delay=0,type:OscillatorType='sine',volume=.6){if(!this.enabled||!this.context||!this.master)return;const t=this.context.currentTime+delay,o=this.context.createOscillator(),g=this.context.createGain();o.type=type;o.frequency.setValueAtTime(frequency,t);g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(volume,t+.008);g.gain.exponentialRampToValueAtTime(.001,t+duration);o.connect(g);g.connect(this.master);o.start(t);o.stop(t+duration+.02);o.onended=()=>{o.disconnect();g.disconnect();};}
   drop(){this.tone(150,.1,0,'triangle',.25);}
   landing(perfect:boolean,combo:number){
