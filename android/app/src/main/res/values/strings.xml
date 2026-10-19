@@ -4,4 +4,6 @@
     <string name="title_activity_main">Stack Vechiles</string>
     <string name="package_name">com.trishool.stackline</string>
     <string name="custom_url_scheme">com.trishool.stackline</string>
+    <!-- Google demo application ID. This testing build never serves live ads. -->
+    <string name="admob_app_id" translatable="false">ca-app-pub-3940256099942544~3347511713</string>
 </resources>

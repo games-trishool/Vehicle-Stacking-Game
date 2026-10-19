@@ -59,13 +59,14 @@ Crash audio uses three original buffers prepared during loading in 1.2.0 and reu
 
 ## Pixel 8 checks before the next release
 
-1. Sign the 1.2.1 AAB with the registered upload key, upload version code 5 to the same app's Internal testing track, and update through Google Play. Keep the existing install so save preservation can be checked.
+1. Sign the 1.3.0 AAB with the registered upload key, upload version code 6 to the same app's Internal testing track, and update through Google Play. Keep the existing install so save preservation can be checked.
 2. Test Auto for at least ten minutes in Forest and Night City. Look for delayed taps, uneven camera motion, warmth, and audio interruptions. Compare Battery saver if the phone gets warm.
 3. Open menus, pause, leave the app, and return. The run should stay paused and music should remain stopped until **Keep climbing**. Repeat after locking the phone.
 4. Check a centered drop, a corner miss, a tall tower, and replay. Replay must clear the old tower and reset score and run coins.
 5. On a fresh launch, tap Play without opening another menu. Check immediate music and sound on the very first collision. Drop several different vehicles and compare soft and hard crashes with music on/off. Turn **Sound effects** off and verify impacts stay silent after reopening.
 6. Try a free choice and a paid choice in each selector. Cancel must cancel; Done must save and charge only once. Test insufficient coins.
 7. Cancel Reset game and confirm nothing changes. Then, only on a test save, confirm reset and verify zero coins, free choices, default settings, and cleared records after reopening.
-8. Force-close and reopen. Verify vehicle, place, music preference, coins, and high score. Check offline launch after the native app has been installed.
+8. On Wi-Fi, finish three games and check one Google test interstitial before results; close it and replay. No ad should appear during play, pause, startup, or the first two results. Repeat offline: results must remain usable without waiting for an ad. Check sound after dismissal and after backgrounding the app during the ad.
+9. Force-close and reopen. Verify vehicle, place, music preference, coins, and high score. Check offline launch after the native app has been installed.
 
 The original game and this game have separate Play testing requirements. Starting or completing a different game's closed test does not establish production access for this package.

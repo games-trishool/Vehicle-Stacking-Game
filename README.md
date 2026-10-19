@@ -32,7 +32,13 @@ npm run preview     # serve the production bundle
 
 The browser tests use `/usr/bin/chromium` by default. Set `CHROMIUM_PATH` to a locally installed Chromium binary elsewhere. They use software WebGL, exercise real inputs and rigid-body simulation, and never replace physics or scores with mocked state.
 
-## Play, progression, and selection — 1.2.1
+## AdMob test interstitials — 1.3.0
+
+The native Android app preloads a Google test interstitial and presents it after every third completed game, before the results screen. Pausing, restarting, or returning home before losing does not count. The counter survives reopening; Reset game clears it. If no ad is ready, that break is skipped without waiting or showing it later during play. Music/effects stay silent during the ad, and replay controls return only after dismissal or a presentation failure.
+
+This ZIP uses Google’s demo AdMob application and interstitial IDs, with test mode enabled. It serves no revenue ads and needs no personal AdMob IDs for testing. **Browser play (`npm run dev`, Chrome, or a home-screen web shortcut) does not display native AdMob ads.** See [Android ad testing](docs/ADMOB.md) for installation and the three-game check.
+
+## Play, progression, and selection
 
 - **Free:** Mixed mode, Classic coupe, Trail SUV, Pickup truck; Realistic Forest, Night City, Outer Space.
 - **150 coins:** Sport GT or Snow Mountains. **250 coins:** City bus or Desert. **350 coins:** Field tractor or Beach. Each is a separate permanent unlock using earned in-game coins.
@@ -107,6 +113,7 @@ The master app icon is `public/icons/icon-512.png`. To regenerate its browser, A
 - `src/main.ts` / `src/style.css` / `src/layout.css`: menus, HUD, fixed viewport layouts, scrollable selection dialogs, achievements, and progression integration.
 - `src/store.mjs`: versioned saves, vehicle costs, achievement definitions, reward rules, personal rankings.
 - `src/impacts.mjs`: collision strength/cooldown rules and original crash waveform synthesis.
+- `src/admob.ts` / `src/interstitials.ts`: native test-ad adapter, persistent three-game frequency, cache expiry, and dismissal gating.
 - `src/audio.ts`: preloaded background music, collision-driven effects, and independent controls with pause/resume handling.
 - `src/music-score.ts` / `scripts/render-audio.mjs`: original score composition and optional authoring pipeline for the bundled Ogg track.
 - `tests/`: unit coverage plus live browser integration checks.
@@ -115,7 +122,7 @@ The master app icon is `public/icons/icon-512.png`. To regenerate its browser, A
 
 The vehicle meshes and environments are original procedural art with PBR materials; they are not scanned or licensed photorealistic production assets. Collision hulls approximate the vehicle shapes to keep stacking responsive. A production realism pass can replace this art with professionally authored, optimized models and textures while retaining the game systems.
 
-Rankings are local to the device. Global authenticated leaderboards, cloud saves, and anti-cheat require a backend and are not simulated here. No ads, analytics, real-money transactions, or external tracking are included.
+Rankings are local to the device. Global authenticated leaderboards, cloud saves, and anti-cheat require a backend and are not simulated here. Native Android includes Google Mobile Ads for test interstitials; its SDK makes network requests. Browser play has no ads. No analytics service or real-money transactions are implemented. Live monetization is not enabled in this test build.
 
 Before Google Play release, choose the final package identity, create a private signing key, configure release signing, review current target API requirements, prepare the privacy/Data Safety declarations and store artwork, and validate frame times, memory, audio, vibration, pause/resume, and WebView compatibility on physical Android devices. The cloud browser checks do not establish device performance or store readiness. Never commit signing keys or credentials.
 

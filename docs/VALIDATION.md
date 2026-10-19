@@ -1,8 +1,18 @@
-# Validation — 1.2.1
+# Validation — 1.3.0
 
 The prepared cloud environment builds and runs the game. All production assets, including music, are bundled locally.
 
-## Current UI update
+## AdMob test integration — 1.3.0
+
+- `npm test`: **27 tests passed**, including seven new ad checks. They exercise the real frequency controller and native event adapter for games 3/6, counter persistence/reset, slow loads, background rejection, load/show errors, duplicate presentation prevention, cache expiry, and unavailable/corrupt storage. The native show request resolving is explicitly insufficient to release controls; dismissal or failure must arrive.
+- `npm run build` and `npx cap sync android` passed. Android includes `@capacitor-community/admob` 7.2.0, Google Mobile Ads 24.7.0, and UMP 3.1.0, with native versions pinned. Only Google's demo App ID and interstitial ID are used; initialization and requests force test mode. No live monetization is enabled.
+- The Android-bridge browser check passed (52.2 seconds). It emulates only Capacitor's native SDK boundary, finishes three real runs through normal drop input, verifies no ads on startup or the first two losses, and confirms that abandoning an unfinished run does not count. The third loss requests exactly one interstitial. Controls and result UI stay blocked until dismissal, game audio is suspended, and replay starts with fresh counters and music. The next ad is preloaded. Game positions, physics clocks, scores, and run totals are not edited by the test.
+- Two existing browser regressions also passed (2.6 minutes): real centered drops earn nine coins across three perfects, pause/resume works, a missed drop ends the run, replay clears it, and music starts immediately and respects its saved independent setting. The current update therefore passed **three browser checks** in total.
+- Native `bundleRelease` passed. Google bundletool 1.17.1 validated `Stack-Vechiles-1.3.0-unsigned.aab` (**8,220,618 bytes**). Package `com.trishool.stackline`, version code **6**, version **1.3.0**, minimum API 23, target API 35, and no debuggable flag were confirmed. ZIP integrity and byte equality of all **31 production web assets** passed. The bundle contains the AdMob plugin registration, the Google demo App ID resource, Mobile Ads bytecode, and the SDK's AdActivity/manifest metadata. The SDK's advertising-related manifest permissions are present. SHA-256 is recorded in `releases/SHA256SUMS.txt`.
+- The signing helper passed new-key and existing-key flows with a temporary test key, and both outputs passed independent `jarsigner` verification. Test keys and signed files were deleted; the distributed bundle remains unsigned and requires the owner's existing upload key.
+- Real Google ad delivery and Android activity/audio behavior on a physical Pixel 8 remain device checks. The browser bridge is a mock, not an AdMob server or Android runtime. See [ADMOB.md](ADMOB.md) for testing and the live-ad prerequisites.
+
+## Previous UI checks — 1.2.1
 
 - `npm run build` and `npx cap sync android` passed for 1.2.1. The selection footer uses Cancel on the left and Done on the right with a 10px gap and no close icon. Both buttons remain outside the scrolling list; Cancel discards pending selections and Done retains the existing apply/purchase behavior.
 - Both focused browser checks passed (3.1 minutes). They cover fixed home layouts from 320×480 through desktop, real touch swipes in vehicle/place/Garage and achievement lists, all six achievements without pagination, fixed headers and selection actions, 44px minimum action heights, and the 10px action gap. The selection/purchase/reset check covers cancellation without spending, committing free and paid choices, persistence after reload, and confirmed reset.
@@ -11,7 +21,7 @@ The prepared cloud environment builds and runs the game. All production assets, 
 
 ## Previous regression baseline — 1.2.0
 
-The broader regression results below were recorded for 1.2.0. The current UI update reruns the two relevant browser checks; it does not claim a new full-suite or physical-device run.
+The broader regression results below were recorded for 1.2.0. Later focused checks are reported above; the full browser suite and physical-device checks were not rerun for 1.3.0.
 
 - `npm test`: all **20 tests passed**. Eleven cover rewards, purchases, persistence, legacy saves, and reset; four use real Cannon ES simulation for safe stacking and first platform/ground contact; three check impact filtering and finite, peak-bounded crash samples at 32/48 kHz. Two audio-controller regressions use a suspended-device boundary: the first crash is scheduled even before the audio state changes to running, and prepared music starts its source synchronously in the Play call without fetching or rendering.
 - `npm run build`: strict TypeScript compilation and Vite production bundling passed. Normal builds use the checked-in **240,812-byte** original Ogg score. The optional score-authoring script was also executed successfully with Chromium and ffmpeg. Track duration is 15.238094 seconds. No score composition runs in the shipped Play handler.

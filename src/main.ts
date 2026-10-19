@@ -10,6 +10,7 @@ import './style.css';
 import './layout.css';
 import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
+import { createInterstitials } from './admob';
 import { StackingGame,type Landing } from './game';
 import { icon } from './icons';
 import { VEHICLES,WORLDS,ACHIEVEMENTS,loadState,saveState,unlockVehicle,unlockWorld,resetState,recordRun } from './store.mjs';
@@ -20,6 +21,11 @@ let storage:Storage;
 try{storage=window.localStorage;}catch{storage={getItem:()=>null,setItem:()=>{throw new Error("Storage unavailable");},removeItem:()=>{},clear:()=>{},key:()=>null,length:0};}
 const state=loadState(storage);let game:StackingGame|undefined,thumbs:Record<string,string>={},dialogKind='',dialogPage=0,runPreviousBest=state.best,sessionBestCombo=0,runRecorded=false,persistWarned=false,bootReady=false,pendingVehicle=state.selectedVehicle,pendingWorld=state.selectedWorld;
 const app=document.querySelector<HTMLDivElement>('#app')!;
+const interstitials=createInterstitials(storage);
+interstitials.onBusyChange=busy=>{
+ app.inert=busy;game?.setOverlayOpen(busy||modal.open);
+ if(busy)void game?.audio.context?.suspend().catch(()=>{});
+};
 app.innerHTML=`
  <div class="home-shell" id="home-shell">
   <header class="header">
@@ -94,13 +100,14 @@ function earn(id:string){if(state.achievements.includes(id))return;state.achieve
 }
 function haptic(perfect=false){if(state.settings.haptics&&navigator.vibrate)navigator.vibrate(perfect?[18,30,18]:15);}
 function start(){
- if(!game||!bootReady)return;closeDialog(false);document.body.classList.add('in-game');$('game-hud').hidden=false;
+ if(!game||!bootReady||interstitials.busy)return;interstitials.preload();closeDialog(false);document.body.classList.add('in-game');$('game-hud').hidden=false;
  $('score').textContent='0';$('run-coins').textContent='0';$('height').textContent='0.0';$('landing-feedback').classList.remove('show');$('drop-instruction').classList.remove('hidden');$('stability-value').textContent='100%';$('stability-fill').style.width='100%';
  runPreviousBest=state.best;sessionBestCombo=0;runRecorded=false;game.start();game.resize();
 }
-function home(reset=false){closeDialog(false);document.body.classList.remove('in-game');$('game-hud').hidden=true;if(reset)game?.reset();else game?.showHome();game?.resize();renderState();}
+function home(reset=false){if(interstitials.busy)return;closeDialog(false);document.body.classList.remove('in-game');$('game-hud').hidden=true;if(reset)game?.reset();else game?.showHome();game?.resize();renderState();}
 function modalHeader(eyebrow:string,title:string,copy:string,showClose=true){return `<div class="modal-heading"><div><span class="eyebrow">${eyebrow}</span><h2>${title}</h2><p>${copy}</p></div>${showClose?`<button class="icon-button close-modal" data-action="close" aria-label="Close dialog">${icon('close')}</button>`:''}</div>`;}
 function openDialog(kind:string){
+ if(interstitials.busy)return;
  if(kind!==dialogKind){pendingVehicle=state.selectedVehicle;pendingWorld=state.selectedWorld;}
  game?.setOverlayOpen(true);
  const page=kind===dialogKind?dialogPage:0;
@@ -178,7 +185,7 @@ function resultContent(){const isBest=game&&game.score>0&&game.score>runPrevious
 function closeDialog(resume=true){if(modal.open)modal.close();game?.setOverlayOpen(false);if(resume&&dialogKind==='pause')game?.resume();dialogKind='';dialogPage=0;}
 function saveRun(){if(runRecorded||!game)return;recordRun(state,{score:game.score,stacks:game.stacks,height:game.stacks?game.top:0,world:state.selectedWorld,combo:sessionBestCombo});runRecorded=true;persist();renderState();}
 function handleAction(action:string,id?:string){
- if(!bootReady)return;
+ if(!bootReady||interstitials.busy)return;
  game?.audio.init();game?.audio.click();
  if(action==='play'||action==='restart'){if(document.body.classList.contains('in-game'))saveRun();start();}
  else if(action==='page-prev'||action==='page-next')layoutDialog(dialogPage+(action==='page-next'?1:-1));
@@ -206,7 +213,7 @@ function handleAction(action:string,id?:string){
    if(!window.confirm('Reset the entire game? This clears all coins, purchases, scores, achievements, selected vehicles and places, and settings. This cannot be undone.'))return;
    clearTimeout(toastTimer);clearTimeout(achievementTimer);clearTimeout(feedbackTimer);
    $('toast').classList.remove('visible');$('achievement-toast').classList.remove('visible');
-   const saved=resetState(storage,state);runRecorded=true;runPreviousBest=0;sessionBestCombo=0;
+   const saved=resetState(storage,state);interstitials.resetCounter();runRecorded=true;runPreviousBest=0;sessionBestCombo=0;
    game?.configure(state.settings);game?.setVehicles(state.selectedVehicle,state.unlocked);game?.changeWorld(state.selectedWorld as WorldId);
    home(true);toast(saved?'Game reset. A fresh climb awaits.':'Game reset for this session. Device storage is unavailable.');
  }
@@ -218,6 +225,7 @@ modal.addEventListener('click',e=>{if(e.target===modal){const r=modal.getBoundin
 modal.addEventListener('cancel',e=>{e.preventDefault();if(dialogKind==='result')home();else closeDialog();});
 modal.addEventListener('change',e=>{const el=e.target as HTMLSelectElement;if(el.id==='quality'){state.settings.quality=el.value;persist();game?.configure(state.settings);toast('Graphics preference saved');}});
 document.addEventListener('keydown',e=>{
+ if(interstitials.busy)return;
  if(e.code==='Space'&&!e.repeat&&!modal.open&&!(e.target instanceof HTMLSelectElement)&&!(e.target instanceof HTMLButtonElement)){e.preventDefault();if(game?.mode==='home')start();else handleAction('drop');}
  if(e.code==='Escape'&&!modal.open&&game?.mode==='playing'){e.preventDefault();openDialog('pause');}
 });
@@ -235,13 +243,21 @@ requestAnimationFrame(()=>setTimeout(async()=>{
      $('landing-feedback').className=`landing-feedback show ${r.perfect?'perfect':''}`;clearTimeout(feedbackTimer);feedbackTimer=window.setTimeout(()=>$('landing-feedback').classList.remove('show'),1200);haptic(r.perfect);
    };
    game.onStability=value=>{$('stability-value').textContent=`${value}%`;$('stability-fill').style.width=`${value}%`;$('stability-fill').style.background=value<40?'#d9a36a':'#dbea9f';};
-   game.onEnd=()=>{saveRun();window.setTimeout(()=>{if(game?.mode==='ended')openDialog('result');},900);};
+   game.onEnd=()=>{
+    saveRun();const adDue=interstitials.recordCompletedGame();
+    window.setTimeout(async()=>{
+     if(game?.mode!=='ended'||modal.open)return;
+     await interstitials.showAtBreak(adDue,()=>game?.mode==='ended'&&!modal.open&&!document.hidden);
+     if(game?.mode==='ended'&&!modal.open)openDialog('result');
+    },900);
+   };
    thumbs=vehicleThumbnails();await audioReady;renderState();bootReady=true;$('intro').querySelector<HTMLButtonElement>('.play-button')!.disabled=false;$('loading').remove();
    if(Capacitor.isNativePlatform()){
-     void App.addListener('backButton',()=>{if(modal.open){if(dialogKind==='result')home();else closeDialog();}else if(game?.mode==='playing')openDialog('pause');else if(game?.mode==='ended')home();else void App.exitApp();});
+     void App.addListener('backButton',()=>{if(interstitials.busy)return;if(modal.open){if(dialogKind==='result')home();else closeDialog();}else if(game?.mode==='playing')openDialog('pause');else if(game?.mode==='ended')home();else void App.exitApp();});
      void App.addListener('appStateChange',({isActive})=>{if(!isActive){if(game?.mode==='playing')openDialog('pause');void game?.audio.context?.suspend();}game?.setAppActive(isActive);});
    }
+   interstitials.preload();
    // Expose only a read-only diagnostic snapshot for smoke tests and performance inspection.
-   Object.defineProperty(window,'stackline',{value:{snapshot:()=>({mode:game?.mode,score:game?.score,stacks:game?.stacks,height:game?.top,heldX:game?.held?.position.x,held:!!game?.held,falling:!!game?.falling,sceneVehicles:game?.vehicleCount,topX:game?.items.at(-1)?.body.position.x,stability:game?.stability,groundContact:game?.groundContact,drawCalls:game?.renderer.info.render.calls,triangles:game?.renderer.info.render.triangles,renderFrames:game?.renderFrames,renderPending:game?.renderPending,renderBudget:game?.renderBudget,pixelRatio:game?.renderer.getPixelRatio(),shadows:game?.renderer.shadowMap.enabled,shadowSize:game?.scenery.sun.shadow.mapSize.x,pointLights:game?.scenery.localLights.filter(light=>light.visible).length,adaptiveQualityReduced:game?.adaptiveQualityReduced,vehicle:state.selectedVehicle,world:state.selectedWorld,coins:state.coins,quality:state.settings.quality,musicEnabled:game?.audio.musicEnabled,musicPlaying:game?.audio.musicPlaying,musicLevel:game?.audio.musicLevel,crashPlays:game?.audio.crashPlays,musicReady:game?.audio.musicReady,musicStartDelayMs:game?.audio.musicStartDelayMs,audioState:game?.audio.context?.state,unlocked:[...state.unlocked],unlockedWorlds:[...state.unlockedWorlds],effectsLevel:game?.audio.effectsLevel,lastImpactSpeed:game?.lastImpactSpeed,fps:game?.averageFps,cameraY:game?.camera.position.y,storageKey:'stackline.progress.v1'})},writable:false});
+   Object.defineProperty(window,'stackline',{value:{snapshot:()=>({ads:interstitials.snapshot,mode:game?.mode,score:game?.score,stacks:game?.stacks,height:game?.top,heldX:game?.held?.position.x,held:!!game?.held,falling:!!game?.falling,sceneVehicles:game?.vehicleCount,topX:game?.items.at(-1)?.body.position.x,stability:game?.stability,groundContact:game?.groundContact,drawCalls:game?.renderer.info.render.calls,triangles:game?.renderer.info.render.triangles,renderFrames:game?.renderFrames,renderPending:game?.renderPending,renderBudget:game?.renderBudget,pixelRatio:game?.renderer.getPixelRatio(),shadows:game?.renderer.shadowMap.enabled,shadowSize:game?.scenery.sun.shadow.mapSize.x,pointLights:game?.scenery.localLights.filter(light=>light.visible).length,adaptiveQualityReduced:game?.adaptiveQualityReduced,vehicle:state.selectedVehicle,world:state.selectedWorld,coins:state.coins,quality:state.settings.quality,musicEnabled:game?.audio.musicEnabled,musicPlaying:game?.audio.musicPlaying,musicLevel:game?.audio.musicLevel,crashPlays:game?.audio.crashPlays,musicReady:game?.audio.musicReady,musicStartDelayMs:game?.audio.musicStartDelayMs,audioState:game?.audio.context?.state,unlocked:[...state.unlocked],unlockedWorlds:[...state.unlockedWorlds],effectsLevel:game?.audio.effectsLevel,lastImpactSpeed:game?.lastImpactSpeed,fps:game?.averageFps,cameraY:game?.camera.position.y,storageKey:'stackline.progress.v1'})},writable:false});
  }catch(error){console.error(error);$('loading').innerHTML=`<div class="webgl-error">${icon('info')}<h3>Your graphics engine needs a hand.</h3><p>Enable WebGL or hardware acceleration in your browser, then reload to play.</p><button class="primary-button" id="reload">Try again</button></div>`;document.getElementById('reload')?.addEventListener('click',()=>location.reload());}
 },0));

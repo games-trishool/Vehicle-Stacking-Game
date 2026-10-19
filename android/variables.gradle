@@ -13,4 +13,7 @@ ext {
     androidxJunitVersion = '1.2.1'
     androidxEspressoCoreVersion = '3.6.1'
     cordovaAndroidVersion = '10.1.1'
+    // Pin AdMob's native dependencies instead of the plugin's floating 24.7.+.
+    playServicesAdsVersion = '24.7.0'
+    userMessagingPlatformVersion = '3.1.0'
 }
