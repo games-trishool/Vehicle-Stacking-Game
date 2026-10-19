@@ -38,11 +38,11 @@ node scripts/profile-rendering.mjs /tmp/stackline-rendering.json
 
 Set `CHROMIUM_PATH` for a different Chromium installation or `STACKLINE_URL` for a different preview URL. Do not run other software WebGL sessions at the same time when comparing costs.
 
-## Current vehicle-detail update — 1.1.0
+## Vehicle-detail measurements — 1.1.0
 
 The original models now use curved body shells, sculpted wheel arches, clearcoat paint, tinted glass, tire tread, brake discs, and alloy rims. The [six-model report](vehicle-metrics-1.1.0.json) records 8–9 shared material batches and 16,472–18,472 triangles per vehicle. Templates and geometry remain cached across drops; nominal stacking dimensions and collision hulls are unchanged. Mirrors and trim extend beyond those approximate hulls.
 
-The [current rendering report](performance-1.1.0.json) repeats the same 390×844, Battery saver, mixed home-tower scenario. It records the working 1.1.0 build based on `b1e1f6a`, before committing this update.
+The [vehicle-detail rendering report](performance-1.1.0.json) repeats the same 390×844, Battery saver, mixed home-tower scenario. It records the working 1.1.0 build based on `b1e1f6a`, before committing this update.
 
 | World | Draw calls 1.0.1 | 1.1.0 | Triangles 1.0.1 | 1.1.0 |
 |---|---:|---:|---:|---:|
@@ -55,15 +55,17 @@ The [current rendering report](performance-1.1.0.json) repeats the same 390×844
 
 Draw-call counts stay unchanged in this scenario. The added vehicle detail costs 23,008 additional triangles in the four-vehicle home tower. Clearcoat and tire bump shading also add GPU work that these counts do not measure. This is a fidelity/performance tradeoff, not an FPS improvement claim. Auto quality and the 30/60 FPS rendering budgets remain available; actual frame times, warmth, and battery usage require Pixel 8 testing.
 
-Crash audio uses three original buffers prepared on the first interaction and reused during play. Quiet resting contacts and duplicate events are filtered, so persistent physics contacts do not create continuous audio sources. Short music ducking lets impacts remain audible without permanently lowering the soundtrack volume.
+Crash audio uses three original buffers prepared during loading in 1.2.0 and reused during play. Quiet resting contacts and duplicate events are filtered, so persistent physics contacts do not create continuous audio sources. Short music ducking lets impacts remain audible without permanently lowering the soundtrack volume. Version 1.2.0 preloads and decodes the bundled 240,812-byte Ogg score before enabling Play; no OfflineAudioContext score rendering runs on the Play tap. The score source and optional authoring script remain available.
 
 ## Pixel 8 checks before the next release
 
-1. Sign the 1.1.0 AAB with the registered upload key, upload version code 3 to the same app's Internal testing track, and update through Google Play. Keep the existing install so save preservation can be checked.
+1. Sign the 1.2.0 AAB with the registered upload key, upload version code 4 to the same app's Internal testing track, and update through Google Play. Keep the existing install so save preservation can be checked.
 2. Test Auto for at least ten minutes in Forest and Night City. Look for delayed taps, uneven camera motion, warmth, and audio interruptions. Compare Battery saver if the phone gets warm.
 3. Open menus, pause, leave the app, and return. The run should stay paused and music should remain stopped until **Keep climbing**. Repeat after locking the phone.
 4. Check a centered drop, a corner miss, a tall tower, and replay. Replay must clear the old tower and reset score and run coins.
-5. Drop several different vehicles and compare soft and hard crashes with music on/off. Turn **Sound effects** off and verify impacts stay silent after reopening.
-6. Force-close and reopen. Verify vehicle, place, music preference, coins, and high score. Check offline launch after the native app has been installed.
+5. On a fresh launch, tap Play without opening another menu. Check immediate music and sound on the very first collision. Drop several different vehicles and compare soft and hard crashes with music on/off. Turn **Sound effects** off and verify impacts stay silent after reopening.
+6. Try a free choice and a paid choice in each selector. × must cancel; Done must save and charge only once. Test insufficient coins.
+7. Cancel Reset game and confirm nothing changes. Then, only on a test save, confirm reset and verify zero coins, free choices, default settings, and cleared records after reopening.
+8. Force-close and reopen. Verify vehicle, place, music preference, coins, and high score. Check offline launch after the native app has been installed.
 
 The original game and this game have separate Play testing requirements. Starting or completing a different game's closed test does not establish production access for this package.

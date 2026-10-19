@@ -12,13 +12,13 @@ import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
 import { StackingGame,type Landing } from './game';
 import { icon } from './icons';
-import { VEHICLES,WORLDS,ACHIEVEMENTS,loadState,saveState,unlockVehicle,recordRun } from './store.mjs';
+import { VEHICLES,WORLDS,ACHIEVEMENTS,loadState,saveState,unlockVehicle,unlockWorld,resetState,recordRun } from './store.mjs';
 import { vehicleThumbnails,worldArt } from './thumbnails';
 import type { WorldId } from './scenery';
 
 let storage:Storage;
 try{storage=window.localStorage;}catch{storage={getItem:()=>null,setItem:()=>{throw new Error("Storage unavailable");},removeItem:()=>{},clear:()=>{},key:()=>null,length:0};}
-const state=loadState(storage);let game:StackingGame|undefined,thumbs:Record<string,string>={},dialogKind='',dialogPage=0,runPreviousBest=state.best,sessionBestCombo=0,runRecorded=false,persistWarned=false;
+const state=loadState(storage);let game:StackingGame|undefined,thumbs:Record<string,string>={},dialogKind='',dialogPage=0,runPreviousBest=state.best,sessionBestCombo=0,runRecorded=false,persistWarned=false,bootReady=false,pendingVehicle=state.selectedVehicle,pendingWorld=state.selectedWorld;
 const app=document.querySelector<HTMLDivElement>('#app')!;
 app.innerHTML=`
  <div class="home-shell" id="home-shell">
@@ -31,7 +31,7 @@ app.innerHTML=`
     <div class="hero" id="hero">
       <section class="intro" id="intro">
         <div class="home-actions">
-        <button class="play-button" data-action="play" aria-label="Let’s play">${icon('play')}<span>Let’s play</span><span class="key-hint">SPACE</span>${icon('arrow')}</button>
+        <button class="play-button" data-action="play" disabled aria-label="Let’s play">${icon('play')}<span>Let’s play</span><span class="key-hint">SPACE</span>${icon('arrow')}</button>
         <div class="selection-list">
           <button class="selection-row" data-action="vehicles" aria-label="Change vehicle"><span class="selection-icon vehicle-icon" id="selection-vehicle-image">${icon('car')}</span><span class="selection-text"><strong>Change vehicle</strong><small id="selected-vehicle-name">Mixed vehicles</small></span>${icon('arrow')}</button>
           <button class="selection-row" data-action="worlds" aria-label="Change place"><span class="selection-icon world-icon" id="selection-world-image">${icon('tree')}</span><span class="selection-text"><strong>Change place</strong><small id="selected-world-name">Realistic Forest</small></span>${icon('arrow')}</button>
@@ -62,7 +62,7 @@ app.innerHTML=`
       <div class="progress-cards">
         <button class="progress-card record-card" data-action="leaderboard"><span class="card-icon">${icon('trophy')}</span><div><small>PERSONAL BEST</small><strong id="best-score">0<span> pts</span></strong><p>There’s always a little higher.</p></div><span class="card-arrow">${icon('arrow')}</span></button>
         <button class="progress-card" data-action="achievements" aria-label="Achievements"><span class="card-icon">${icon('flag')}</span><div><small>ACHIEVEMENTS</small><strong id="achievement-count">0 <span>/ 6</span></strong><p>Your next milestone is waiting.</p></div><span class="card-arrow">${icon('arrow')}</span></button>
-        <button class="progress-card garage-card" data-action="garage" aria-label="Garage"><div class="garage-preview" id="garage-preview"></div><div><small>GARAGE</small><strong id="next-vehicle">Sport GT</strong><p id="unlock-progress">120 / 150 coins</p><div class="unlock-track"><i id="unlock-fill"></i></div></div><span class="card-arrow">${icon('arrow')}</span></button>
+        <button class="progress-card garage-card" data-action="garage" aria-label="Garage"><div class="garage-preview" id="garage-preview"></div><div><small>GARAGE</small><strong id="next-vehicle">Sport GT</strong><p id="unlock-progress">${state.coins} / 150 coins</p><div class="unlock-track"><i id="unlock-fill"></i></div></div><span class="card-arrow">${icon('arrow')}</span></button>
       </div>
     </section>
     <footer class="footer"><span class="footer-brand">Stack Vechiles <span>Built for the climb.</span></span><span>A moment of focus. A world of fun.</span><button data-action="howto">How to play ${icon('info')}</button></footer>
@@ -94,13 +94,14 @@ function earn(id:string){if(state.achievements.includes(id))return;state.achieve
 }
 function haptic(perfect=false){if(state.settings.haptics&&navigator.vibrate)navigator.vibrate(perfect?[18,30,18]:15);}
 function start(){
- if(!game)return;closeDialog(false);document.body.classList.add('in-game');$('game-hud').hidden=false;
+ if(!game||!bootReady)return;closeDialog(false);document.body.classList.add('in-game');$('game-hud').hidden=false;
  $('score').textContent='0';$('run-coins').textContent='0';$('height').textContent='0.0';$('landing-feedback').classList.remove('show');$('drop-instruction').classList.remove('hidden');$('stability-value').textContent='100%';$('stability-fill').style.width='100%';
  runPreviousBest=state.best;sessionBestCombo=0;runRecorded=false;game.start();game.resize();
 }
-function home(){closeDialog(false);document.body.classList.remove('in-game');$('game-hud').hidden=true;game?.showHome();game?.resize();renderState();}
+function home(reset=false){closeDialog(false);document.body.classList.remove('in-game');$('game-hud').hidden=true;if(reset)game?.reset();else game?.showHome();game?.resize();renderState();}
 function modalHeader(eyebrow:string,title:string,copy:string){return `<div class="modal-heading"><div><span class="eyebrow">${eyebrow}</span><h2>${title}</h2><p>${copy}</p></div><button class="icon-button close-modal" data-action="close" aria-label="Close dialog">${icon('close')}</button></div>`;}
 function openDialog(kind:string){
+ if(kind!==dialogKind){pendingVehicle=state.selectedVehicle;pendingWorld=state.selectedWorld;}
  game?.setOverlayOpen(true);
  const page=kind===dialogKind?dialogPage:0;
  const scrollTop=kind===dialogKind?($('modal-content').querySelector('.selection-scroll')?.scrollTop||0):0;
@@ -108,16 +109,18 @@ function openDialog(kind:string){
  if(kind==='vehicles'||kind==='garage'){
    const isGarage=kind==='garage';content=modalHeader(isGarage?'GOOD THINGS COME WITH WHEELS':'YOUR TOWER. YOUR WAY.',isGarage?'The garage.':'Pick your ride.',isGarage?'Earn coins with every landing. Find your next favorite.':'Stick with a favorite, or keep the climb surprising.');
    content+=`<div class="modal-meta"><span>${state.unlocked.length-1} / 6 vehicles unlocked</span><span class="coin-balance">${icon('coin')} ${state.coins} coins</span></div><div class="vehicle-grid">`;
-   for(const v of VEHICLES){const owned=state.unlocked.includes(v.id),selected=state.selectedVehicle===v.id;content+=`<button class="vehicle-card ${selected?'selected':''} ${!owned?'locked':''} ${v.id==='mixed'?'mixed-card':''}" data-action="select-vehicle" data-id="${v.id}" aria-pressed="${selected}"><div class="vehicle-card-top"><span>${v.label}</span>${selected?`<span class="selected-check">${icon('check')}</span>`:!owned?icon('lock'):''}</div><div class="vehicle-render">${v.id==='mixed'?'<span class="mixed-spark spark-one">✦</span><span class="mixed-spark spark-two">✦</span>':''}<img src="${thumbs[v.id]||''}" alt="${v.name} 3D model" /></div><div class="vehicle-details"><h3>${v.name}</h3><p>${v.subtitle}</p><span class="vehicle-status">${selected?'SELECTED':owned?'READY TO STACK':`${icon('coin')} ${v.cost} · UNLOCK`}</span></div></button>`;}
-   content+='</div><p class="modal-footnote">Swipe up to explore every vehicle. Mixed mode chooses from your unlocked vehicles. Your choice is saved automatically.</p>';
+   for(const v of VEHICLES){const owned=state.unlocked.includes(v.id),selected=pendingVehicle===v.id;content+=`<button class="vehicle-card ${selected?'selected':''} ${!owned?'locked':''} ${v.id==='mixed'?'mixed-card':''}" data-action="select-vehicle" data-id="${v.id}" aria-pressed="${selected}"><div class="vehicle-card-top"><span>${v.label}</span>${selected?`<span class="selected-check">${icon('check')}</span>`:!owned?icon('lock'):''}</div><div class="vehicle-render">${v.id==='mixed'?'<span class="mixed-spark spark-one">✦</span><span class="mixed-spark spark-two">✦</span>':''}<img src="${thumbs[v.id]||''}" alt="${v.name} 3D model" /></div><div class="vehicle-details"><h3>${v.name}</h3><p>${v.subtitle}</p><span class="vehicle-status">${selected?'SELECTED':owned?'READY TO STACK':`${icon('coin')} ${v.cost} · UNLOCK`}</span></div></button>`;}
+   content+='</div>'+selectionFooter('vehicles');
  }
  if(kind==='worlds'){
-   content=modalHeader('A CHANGE OF SCENERY','Find your happy place.','Six worlds to get lost in. One tower to get right.');content+='<div class="world-grid">';
-   for(const w of WORLDS){const selected=state.selectedWorld===w.id;content+=`<button class="world-card ${selected?'selected':''}" data-action="select-world" data-id="${w.id}" aria-pressed="${selected}"><div class="world-art">${worldArt(w.id)}<span>${w.tag}</span>${selected?`<i>${icon('check')}</i>`:''}</div><div><h3>${w.name}</h3><p>${w.subtitle}</p></div></button>`;}content+='</div><p class="modal-footnote">Swipe up to explore all six places. Your selected background is saved for your next climb.</p>';
+   content=modalHeader('A CHANGE OF SCENERY','Find your happy place.','Choose a place, then tap Done to save.');
+   content+=`<div class="modal-meta"><span>${state.unlockedWorlds.length} / 6 places unlocked</span><span class="coin-balance">${icon('coin')} ${state.coins} coins</span></div><div class="world-grid">`;
+   for(const w of WORLDS){const selected=pendingWorld===w.id,owned=state.unlockedWorlds.includes(w.id);content+=`<button class="world-card ${selected?'selected':''} ${!owned?'locked':''}" data-action="select-world" data-id="${w.id}" aria-pressed="${selected}"><div class="world-art">${worldArt(w.id)}<span>${w.tag}</span>${selected?`<i>${icon('check')}</i>`:!owned?`<i>${icon('lock')}</i>`:''}</div><div><h3>${w.name}</h3><p>${w.subtitle}</p><span class="vehicle-status">${selected?'SELECTED':owned?'READY TO EXPLORE':`${icon('coin')} ${w.cost} · UNLOCK`}</span></div></button>`;}
+   content+='</div>'+selectionFooter('worlds');
  }
  if(kind==='settings'){
    content=modalHeader('MAKE YOURSELF AT HOME','Your kind of play.','The little things that make every climb feel right.');
-   content+=`<div class="settings-list">${settingToggle('music','Background music','An upbeat arcade soundtrack for every climb.','music')}${settingToggle('sound','Sound effects','Hear every crash and landing.','sound')}${settingToggle('haptics','Touch feedback','Feel your timing with gentle vibrations.','target')}${settingToggle('reduceMotion','Reduce motion','Turn off camera shake and slow motion.','layers')}<div class="setting-row"><span class="setting-icon">${icon('sun')}</span><div><strong>Graphics quality</strong><p>Auto adapts to your device. Battery saver reduces shadows.</p></div><select id="quality" aria-label="Graphics quality"><option value="auto" ${state.settings.quality==='auto'?'selected':''}>Auto</option><option value="high" ${state.settings.quality==='high'?'selected':''}>High</option><option value="low" ${state.settings.quality==='low'?'selected':''}>Battery saver</option></select></div></div><div class="settings-note">${icon('info')} Progress is saved on this device. No account needed.</div>`;
+   content+=`<div class="settings-list">${settingToggle('music','Background music','An upbeat arcade soundtrack for every climb.','music')}${settingToggle('sound','Sound effects','Hear every crash and landing.','sound')}${settingToggle('haptics','Touch feedback','Feel your timing with gentle vibrations.','target')}${settingToggle('reduceMotion','Reduce motion','Turn off camera shake and slow motion.','layers')}<div class="setting-row"><span class="setting-icon">${icon('sun')}</span><div><strong>Graphics quality</strong><p>Auto adapts to your device. Battery saver reduces shadows.</p></div><select id="quality" aria-label="Graphics quality"><option value="auto" ${state.settings.quality==='auto'?'selected':''}>Auto</option><option value="high" ${state.settings.quality==='high'?'selected':''}>High</option><option value="low" ${state.settings.quality==='low'?'selected':''}>Battery saver</option></select></div></div><div class="settings-note">${icon('info')} Progress is saved on this device.</div><button class="reset-game-button" data-action="reset-game">${icon('refresh')} Reset game</button>`;
  }
  if(kind==='leaderboard'){
    content=modalHeader('A LITTLE FRIENDLY COMPETITION','Your best climbs.','Every personal best starts with one good drop.');
@@ -130,13 +133,18 @@ function openDialog(kind:string){
    content=modalHeader('CELEBRATE THE LITTLE THINGS','Milestones worth the climb.',`${state.achievements.length} of ${ACHIEVEMENTS.length} achievements discovered.`);content+='<div class="achievements-grid">';
    for(const a of ACHIEVEMENTS){const earned=state.achievements.includes(a.id);content+=`<div class="achievement-card ${earned?'earned':''}"><span class="achievement-icon">${icon(a.icon)}</span><div><h3>${a.name}</h3><p>${a.description}</p><small>${earned?'UNLOCKED':'KEEP CLIMBING'}</small></div>${earned?icon('check'):icon('lock')}</div>`;}content+='</div>';
  }
- if(kind==='howto')content=modalHeader('SIMPLE TO LEARN. SATISFYING TO MASTER.','Find your rhythm.','The best towers are built one moment at a time.')+`<div class="howto-steps"><div><b>01</b><h3>Watch the ride.</h3><p>Your next vehicle moves above the tower. Wait until it lines up with the vehicle below.</p></div><div><b>02</b><h3>Make the drop.</h3><p>Tap the scene, use the Drop button, or press Space. Gravity takes it from there.</p></div><div><b>03</b><h3>Keep your balance.</h3><p>Land near the center for a perfect drop. Chain perfects for up to 5× points and extra coins. An off-center tower can topple.</p></div></div><button class="primary-button wide" data-action="play">Ready when you are ${icon('arrow')}</button>`;
+ if(kind==='howto')content=modalHeader('SIMPLE TO LEARN. SATISFYING TO MASTER.','Find your rhythm.','The best towers are built one moment at a time.')+`<div class="howto-steps"><div><b>01</b><h3>Watch the ride.</h3><p>Your next vehicle moves above the tower. Wait until it lines up with the vehicle below.</p></div><div><b>02</b><h3>Make the drop.</h3><p>Tap the scene, use the Drop button, or press Space. Gravity takes it from there.</p></div><div><b>03</b><h3>Keep your balance.</h3><p>Center your landing for 3 coins instead of 1. Chain perfects for up to 5× points. Off-center towers can topple.</p></div></div><button class="primary-button wide" data-action="play">Ready when you are ${icon('arrow')}</button>`;
  if(kind==='pause'){
    game?.pause();content=modalHeader('TAKE A BREATH','The view can wait.','Your tower will be right here when you’re ready.')+`<div class="pause-actions"><button class="primary-button wide" data-action="resume">${icon('play')} Keep climbing</button><button class="secondary-button wide" data-action="restart">${icon('refresh')} Start a new run</button><button class="text-button home-button" data-action="end-home">${icon('home')} Back to home</button></div>`;
  }
  if(kind==='result')content=resultContent();
  $('modal-content').innerHTML=content;modal.className=`modal ${kind==='pause'||kind==='result'?'compact-modal':''}`;modal.dataset.screen=kind;layoutDialog(page);if(!modal.open)modal.showModal();
  const list=$('modal-content').querySelector('.selection-scroll');if(list)list.scrollTop=scrollTop;
+}
+function selectionFooter(kind:'vehicles'|'worlds'){
+ const world=kind==='worlds',choice=world?WORLDS.find(w=>w.id===pendingWorld)!:VEHICLES.find(v=>v.id===pendingVehicle)!;
+ const owned=world?state.unlockedWorlds.includes(choice.id):state.unlocked.includes(choice.id);
+ return `<div class="selection-footer"><p>${owned?'Tap Done to save. × cancels your changes.':`${icon('coin')} Unlock for ${choice.cost} coins when you tap Done.`}</p><button class="primary-button selection-done" data-action="selection-done">${icon('check')} Done</button></div>`;
 }
 function layoutDialog(page=0){
  const focusAction=(document.activeElement as HTMLElement|null)?.dataset.action;
@@ -176,6 +184,7 @@ function resultContent(){const isBest=game&&game.score>0&&game.score>runPrevious
 function closeDialog(resume=true){if(modal.open)modal.close();game?.setOverlayOpen(false);if(resume&&dialogKind==='pause')game?.resume();dialogKind='';dialogPage=0;}
 function saveRun(){if(runRecorded||!game)return;recordRun(state,{score:game.score,stacks:game.stacks,height:game.stacks?game.top:0,world:state.selectedWorld,combo:sessionBestCombo});runRecorded=true;persist();renderState();}
 function handleAction(action:string,id?:string){
+ if(!bootReady)return;
  game?.audio.init();game?.audio.click();
  if(action==='play'||action==='restart'){if(document.body.classList.contains('in-game'))saveRun();start();}
  else if(action==='page-prev'||action==='page-next')layoutDialog(dialogPage+(action==='page-next'?1:-1));
@@ -185,15 +194,28 @@ function handleAction(action:string,id?:string){
  else if(action==='resume')closeDialog();
  else if(action==='end-home'){saveRun();home();}
  else if(action==='drop'){if(game?.drop()){$('drop-instruction').classList.add('hidden');haptic();}}
- else if(action==='select-vehicle'&&id){
-   if(!state.unlocked.includes(id)){
-     const v=VEHICLES.find(v=>v.id===id)!;
-     if(!unlockVehicle(state,id)){toast(`Just ${v.cost-state.coins} more coins to unlock ${v.name}. Keep climbing!`);return;}
-     toast(`${v.name} unlocked. Your next adventure starts here.`);
+ else if(action==='select-vehicle'&&id){pendingVehicle=id;openDialog(dialogKind);}
+ else if(action==='select-world'&&id){pendingWorld=id;openDialog('worlds');}
+ else if(action==='selection-done'){
+   if(dialogKind==='worlds'){
+     const choice=WORLDS.find(w=>w.id===pendingWorld)!;
+     if(!unlockWorld(state,choice.id)){toast(`Earn ${choice.cost-state.coins} more coins to unlock ${choice.name}.`);return;}
+     state.selectedWorld=choice.id;game?.changeWorld(choice.id as WorldId);
+   }else{
+     const choice=VEHICLES.find(v=>v.id===pendingVehicle)!;
+     if(!unlockVehicle(state,choice.id)){toast(`Earn ${choice.cost-state.coins} more coins to unlock ${choice.name}.`);return;}
+     state.selectedVehicle=choice.id;game?.setVehicles(choice.id,state.unlocked);
    }
-   state.selectedVehicle=id;persist();game?.setVehicles(id,state.unlocked);renderState();openDialog(dialogKind);toast(`${VEHICLES.find(v=>v.id===id)!.name} selected`);
+   persist();renderState();closeDialog();
  }
- else if(action==='select-world'&&id){state.selectedWorld=id;persist();game?.changeWorld(id as WorldId);renderState();openDialog('worlds');toast(`${WORLDS.find(w=>w.id===id)!.name} selected`);}
+ else if(action==='reset-game'){
+   if(!window.confirm('Reset the entire game? This clears all coins, purchases, scores, achievements, selected vehicles and places, and settings. This cannot be undone.'))return;
+   clearTimeout(toastTimer);clearTimeout(achievementTimer);clearTimeout(feedbackTimer);
+   $('toast').classList.remove('visible');$('achievement-toast').classList.remove('visible');
+   const saved=resetState(storage,state);runRecorded=true;runPreviousBest=0;sessionBestCombo=0;
+   game?.configure(state.settings);game?.setVehicles(state.selectedVehicle,state.unlocked);game?.changeWorld(state.selectedWorld as WorldId);
+   home(true);toast(saved?'Game reset. A fresh climb awaits.':'Game reset for this session. Device storage is unavailable.');
+ }
  else if(action==='toggle'&&(id==='sound'||id==='music'||id==='haptics'||id==='reduceMotion')){state.settings[id]=!state.settings[id];persist();game?.configure(state.settings);openDialog('settings');}
 }
 app.addEventListener('click',e=>{const el=(e.target as Element).closest<HTMLButtonElement>('[data-action]');if(el)handleAction(el.dataset.action!,el.dataset.id);});
@@ -208,23 +230,24 @@ document.addEventListener('keydown',e=>{
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&game?.mode==='playing')openDialog('pause');});
 renderState();
 // Yield once so the loading screen is visible before initializing WebGL.
-requestAnimationFrame(()=>setTimeout(()=>{
+requestAnimationFrame(()=>setTimeout(async()=>{
  try{
    game=new StackingGame($('game-canvas'));game.configure(state.settings);game.changeWorld(state.selectedWorld as WorldId);game.setVehicles(state.selectedVehicle,state.unlocked);
+   const audioReady=game.audio.prepare();
    game.onLanding=(r:Landing)=>{
      state.coins+=r.coins;state.totalStacks++;state.best=Math.max(state.best,r.score);state.bestHeight=Math.max(state.bestHeight,r.height);sessionBestCombo=Math.max(sessionBestCombo,r.combo);if(r.stacks===1)earn('first');if(r.perfect)earn('perfect');if(r.stacks>=10)earn('ten');if(r.combo>=5)earn('combo');if(r.stacks>=20)earn('twenty');persist();
      $('score').textContent=r.score.toLocaleString();$('run-coins').textContent=String(game!.coins);$('height').textContent=r.height.toFixed(1);
-     $('landing-feedback').innerHTML=r.perfect?`<strong>PERFECT.</strong><span>${r.combo>1?`${Math.min(r.combo,5)}× COMBO · `:''}+${r.coins} COINS</span>`:`<strong>NICE LANDING.</strong><span>+40 POINTS · +${r.coins} COINS</span>`;
+     $('landing-feedback').innerHTML=r.perfect?`<strong>PERFECT.</strong><span>${r.combo>1?`${Math.min(r.combo,5)}× COMBO · `:''}+${r.coins} ${r.coins===1?'COIN':'COINS'}</span>`:`<strong>NICE LANDING.</strong><span>+40 POINTS · +${r.coins} ${r.coins===1?'COIN':'COINS'}</span>`;
      $('landing-feedback').className=`landing-feedback show ${r.perfect?'perfect':''}`;clearTimeout(feedbackTimer);feedbackTimer=window.setTimeout(()=>$('landing-feedback').classList.remove('show'),1200);haptic(r.perfect);
    };
    game.onStability=value=>{$('stability-value').textContent=`${value}%`;$('stability-fill').style.width=`${value}%`;$('stability-fill').style.background=value<40?'#d9a36a':'#dbea9f';};
    game.onEnd=()=>{saveRun();window.setTimeout(()=>{if(game?.mode==='ended')openDialog('result');},900);};
-   $('loading').remove();thumbs=vehicleThumbnails();renderState();
+   thumbs=vehicleThumbnails();await audioReady;renderState();bootReady=true;$('intro').querySelector<HTMLButtonElement>('.play-button')!.disabled=false;$('loading').remove();
    if(Capacitor.isNativePlatform()){
      void App.addListener('backButton',()=>{if(modal.open){if(dialogKind==='result')home();else closeDialog();}else if(game?.mode==='playing')openDialog('pause');else if(game?.mode==='ended')home();else void App.exitApp();});
      void App.addListener('appStateChange',({isActive})=>{if(!isActive){if(game?.mode==='playing')openDialog('pause');void game?.audio.context?.suspend();}game?.setAppActive(isActive);});
    }
    // Expose only a read-only diagnostic snapshot for smoke tests and performance inspection.
-   Object.defineProperty(window,'stackline',{value:{snapshot:()=>({mode:game?.mode,score:game?.score,stacks:game?.stacks,height:game?.top,heldX:game?.held?.position.x,held:!!game?.held,falling:!!game?.falling,sceneVehicles:game?.vehicleCount,topX:game?.items.at(-1)?.body.position.x,stability:game?.stability,groundContact:game?.groundContact,drawCalls:game?.renderer.info.render.calls,triangles:game?.renderer.info.render.triangles,renderFrames:game?.renderFrames,renderPending:game?.renderPending,renderBudget:game?.renderBudget,pixelRatio:game?.renderer.getPixelRatio(),shadows:game?.renderer.shadowMap.enabled,shadowSize:game?.scenery.sun.shadow.mapSize.x,pointLights:game?.scenery.localLights.filter(light=>light.visible).length,adaptiveQualityReduced:game?.adaptiveQualityReduced,vehicle:state.selectedVehicle,world:state.selectedWorld,coins:state.coins,quality:state.settings.quality,musicEnabled:game?.audio.musicEnabled,musicPlaying:game?.audio.musicPlaying,musicLevel:game?.audio.musicLevel,crashPlays:game?.audio.crashPlays,effectsLevel:game?.audio.effectsLevel,lastImpactSpeed:game?.lastImpactSpeed,fps:game?.averageFps,cameraY:game?.camera.position.y,storageKey:'stackline.progress.v1'})},writable:false});
+   Object.defineProperty(window,'stackline',{value:{snapshot:()=>({mode:game?.mode,score:game?.score,stacks:game?.stacks,height:game?.top,heldX:game?.held?.position.x,held:!!game?.held,falling:!!game?.falling,sceneVehicles:game?.vehicleCount,topX:game?.items.at(-1)?.body.position.x,stability:game?.stability,groundContact:game?.groundContact,drawCalls:game?.renderer.info.render.calls,triangles:game?.renderer.info.render.triangles,renderFrames:game?.renderFrames,renderPending:game?.renderPending,renderBudget:game?.renderBudget,pixelRatio:game?.renderer.getPixelRatio(),shadows:game?.renderer.shadowMap.enabled,shadowSize:game?.scenery.sun.shadow.mapSize.x,pointLights:game?.scenery.localLights.filter(light=>light.visible).length,adaptiveQualityReduced:game?.adaptiveQualityReduced,vehicle:state.selectedVehicle,world:state.selectedWorld,coins:state.coins,quality:state.settings.quality,musicEnabled:game?.audio.musicEnabled,musicPlaying:game?.audio.musicPlaying,musicLevel:game?.audio.musicLevel,crashPlays:game?.audio.crashPlays,musicReady:game?.audio.musicReady,musicStartDelayMs:game?.audio.musicStartDelayMs,audioState:game?.audio.context?.state,unlocked:[...state.unlocked],unlockedWorlds:[...state.unlockedWorlds],effectsLevel:game?.audio.effectsLevel,lastImpactSpeed:game?.lastImpactSpeed,fps:game?.averageFps,cameraY:game?.camera.position.y,storageKey:'stackline.progress.v1'})},writable:false});
  }catch(error){console.error(error);$('loading').innerHTML=`<div class="webgl-error">${icon('info')}<h3>Your graphics engine needs a hand.</h3><p>Enable WebGL or hardware acceleration in your browser, then reload to play.</p><button class="primary-button" id="reload">Try again</button></div>`;document.getElementById('reload')?.addEventListener('click',()=>location.reload());}
 },0));

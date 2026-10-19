@@ -17,9 +17,9 @@ Tap **Let’s play**, or press **Space**. A vehicle sweeps above the tower: tap 
 
 The fixed starting vehicle supports the tower on its platform. Any dropped or stacked vehicle touching the platform or the surrounding ground immediately ends the run, including contact by a wheel. A vehicle that slides down later is still monitored.
 
-The phone home screen keeps the live 3D preview, **Let’s play**, **Change vehicle**, and **Change place** on one fixed screen. Swipe vertically inside **Change vehicle**, **Change place**, or **Garage** to see every choice; their headings and close buttons stay in place. Selecting a vehicle or place preserves your position in the list. Achievements and the leaderboard use **Previous** and **Next**, with page sizes that adapt to screen height and orientation.
+The phone home screen keeps the live 3D preview, **Let’s play**, **Change vehicle**, and **Change place** on one fixed screen. Swipe vertically inside **Change vehicle**, **Change place**, or **Garage** to see every choice; their headings and close buttons stay in place. Selecting a vehicle or place preserves your position in the list. Tap **Done** at the bottom to save and, if needed, purchase the selected choice. The **×** button closes the dialog and discards the pending selection without spending coins. Achievements and the leaderboard use **Previous** and **Next**, with page sizes that adapt to screen height and orientation.
 
-The upbeat 126 BPM arcade soundtrack is on by default and starts when you choose **Let’s play**. It combines drums, bass, and a bright melody, with normalized loudness for phone speakers and bounded peaks. It pauses with the game and fades out on game over or return home. In **Settings → Background music**, you can turn it off independently of sound effects; your preference is saved for future sessions.
+The upbeat 126 BPM arcade soundtrack is on by default. Its bundled audio is loaded and decoded before Play is enabled, so the Play gesture schedules music immediately without composing it during gameplay. It combines drums, bass, and a bright melody, with normalized loudness for phone speakers and bounded peaks. It pauses with the game and fades out on game over or return home. In **Settings → Background music**, you can turn it off independently of sound effects; your preference is saved for future sessions.
 
 The rendering system caps the home preview at 30 FPS and gameplay rendering at 60 FPS, stops rendering behind menus and while inactive, and batches repeated scenery. These are frame budgets; actual FPS depends on the device. Auto graphics adapts to sustained gameplay load, while High and Battery saver remain explicit choices. See [performance measurements and the Pixel 8 test checklist](docs/PERFORMANCE.md).
 
@@ -31,6 +31,17 @@ npm run preview     # serve the production bundle
 ```
 
 The browser tests use `/usr/bin/chromium` by default. Set `CHROMIUM_PATH` to a locally installed Chromium binary elsewhere. They use software WebGL, exercise real inputs and rigid-body simulation, and never replace physics or scores with mocked state.
+
+## Play, progression, and selection update — 1.2.0
+
+- **Free:** Mixed mode, Classic coupe, Trail SUV, Pickup truck; Realistic Forest, Night City, Outer Space.
+- **150 coins:** Sport GT or Snow Mountains. **250 coins:** City bus or Desert. **350 coins:** Field tractor or Beach. Each is a separate permanent unlock using earned in-game coins.
+- **Done** confirms the pending vehicle/place selection and purchases it once if locked. Closing with **×**, Escape, or Back cancels without spending coins. Purchases and choices persist after reopening.
+- **Settings → Reset game** opens a confirmation alert. Confirming clears coins, purchases, records, achievements, selections, and settings, returns home with only the free choices, and saves the fresh state. Cancelling leaves the save intact. Other apps' browser storage is untouched.
+- Existing balances and purchased vehicles are preserved. Old saves without place ownership start with the three free places; a formerly selected paid place changes to Forest until unlocked.
+- The original soundtrack is preloaded; its playback source starts in the Play handler. Crash buffers are also prepared before gameplay. A first crash can be scheduled while Android's audio context resumes, instead of being discarded while suspended.
+
+To change the original score, edit `src/music-score.ts` and run `node scripts/render-audio.mjs` with Chromium and ffmpeg installed. The checked-in `public/audio/arcade-loop.ogg` is used during normal development and Android builds; these authoring tools are optional for players and developers using the existing score.
 
 ## Vehicle and impact update — 1.1.0
 
@@ -46,8 +57,8 @@ Collisions now play an original layered chassis thud, metal crunch, panel resona
 - Fixed-vehicle selection and mixed mode, which draws only from unlocked vehicles.
 - Forest, night city, space, snow mountains, desert, and beach worlds, built from 3D geometry. Clouds move, beach water animates, and the camera climbs with the physical tower.
 - Gravity, compound rigid-body collision shapes, friction, impact settling, stability monitoring, slow-motion perfect landings, camera shake, and collision particles.
-- Synthesized sound effects, an original looping background score with independent music and effects controls, optional vibration, and reduced-motion settings. The score is rendered once into a reusable audio buffer to avoid ongoing music scheduling on the game thread.
-- Earned coins, three unlockable vehicles, six achievements, high scores, and local leaderboards. A new save receives 120 starter coins.
+- Synthesized sound effects, an original looping background score with independent music and effects controls, optional vibration, and reduced-motion settings. The score is bundled as an original Ogg track, decoded before Play and reused without composing or scheduling individual notes during gameplay.
+- Earned coins, three unlockable vehicles and three unlockable places, six achievements, high scores, and local leaderboards. A new or reset save starts with zero coins. Normal landings earn **1 coin**; perfect landings earn **3 coins**, regardless of combo. Combos multiply points only.
 - Saved choices, settings, purchases, achievements, scores, and coins in versioned local storage. Invalid or unavailable storage does not prevent play.
 - A polished wooden platform with plank grain, a warm rim, and fine brass trim in every world.
 - Fixed viewport desktop and mobile UI with large touch controls, vertically scrolling vehicle/place lists, keyboard controls, accessible native dialogs, self-hosted fonts, and adaptive rendering quality.
@@ -96,7 +107,8 @@ The master app icon is `public/icons/icon-512.png`. To regenerate its browser, A
 - `src/main.ts` / `src/style.css` / `src/layout.css`: menus, HUD, fixed viewport layouts, scrollable selection dialogs, achievements, and progression integration.
 - `src/store.mjs`: versioned saves, vehicle costs, achievement definitions, reward rules, personal rankings.
 - `src/impacts.mjs`: collision strength/cooldown rules and original crash waveform synthesis.
-- `src/audio.ts`: collision-driven effects and an original looping background score, triggered after player interaction with independent controls and pause/resume handling.
+- `src/audio.ts`: preloaded background music, collision-driven effects, and independent controls with pause/resume handling.
+- `src/music-score.ts` / `scripts/render-audio.mjs`: original score composition and optional authoring pipeline for the bundled Ogg track.
 - `tests/`: unit coverage plus live browser integration checks.
 
 ## Release work still required

@@ -76,6 +76,7 @@ export class StackingGame {
     for(const p of this.particles){this.scene.remove(p.mesh);p.mesh.dispose();p.mesh.geometry.dispose();(p.mesh.material as THREE.Material).dispose();}
     this.particles=[];this.world=undefined;this.spawnTimer=0;this.slow=0;this.shake=0;this.groundContact=false;
   }
+  reset(){this.score=0;this.stacks=0;this.combo=0;this.coins=0;this.stability=100;this.showHome();}
   showHome(){
     this.clear();this.mode='home';let y=.49;
     const ids:VehicleId[]=this.selectedVehicle==='mixed'?['suv','truck','car','sports']:Array(4).fill(this.selectedVehicle);

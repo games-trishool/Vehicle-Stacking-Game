@@ -28,17 +28,18 @@ async function expectFits(page:Page,selector:string){
 }
 test('home, selectors, six live worlds and preferences persist without rendering errors',async({page})=>{
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
+ await page.addInitScript(()=>{if(!localStorage.getItem('stackline.progress.v1'))localStorage.setItem('stackline.progress.v1',JSON.stringify({version:1,coins:2000,settings:{quality:'low',sound:false}}));});
  await ready(page);await expect(page.locator('.play-button')).toBeVisible();await expect(page.locator('h1')).toHaveCount(0);
  await expect(page).toHaveTitle(/Stack Vechiles/);await expect(page.locator('.brand-name')).toHaveText('Stack Vechiles');
  expect(await page.locator('.brand-mark img').evaluate((img:HTMLImageElement)=>img.complete&&img.naturalWidth===192)).toBe(true);
  const manifest=await (await page.request.get('/manifest.webmanifest')).json();expect(manifest.name).toBe('Stack Vechiles');
  for(const entry of manifest.icons)expect((await page.request.get(entry.src)).status()).toBe(200);
- await page.locator('[data-action="vehicles"]').click();await choose(page,'truck');await expect(page.locator('[data-id="truck"]')).toHaveAttribute('aria-pressed','true');await page.locator('[data-action="close"]').click();
+ await page.locator('[data-action="vehicles"]').click();await choose(page,'truck');await expect(page.locator('[data-id="truck"]')).toHaveAttribute('aria-pressed','true');await page.getByRole('button',{name:'Done',exact:true}).click();
  await page.locator('.selection-row[data-action="worlds"]').click();
  for(const world of ['city','space','snow','desert','beach','forest']){
-  await choose(page,world);expect((await snapshot(page)).world).toBe(world);await page.waitForTimeout(150);
+  await choose(page,world);await page.getByRole('button',{name:'Done',exact:true}).click();expect((await snapshot(page)).world).toBe(world);await page.locator('.selection-row[data-action="worlds"]').click();
  }
- await choose(page,'beach');await page.locator('[data-action="close"]').click();await page.reload();await page.waitForFunction(()=>!!(window as any).stackline);
+ await choose(page,'beach');await page.getByRole('button',{name:'Done',exact:true}).click();await page.reload();await page.waitForFunction(()=>!!(window as any).stackline);
  expect((await snapshot(page)).vehicle).toBe('truck');expect((await snapshot(page)).world).toBe('beach');
  await page.locator('[data-action="settings"]').click();await page.locator('[data-id="reduceMotion"]').click();await expect(page.locator('[data-id="reduceMotion"]')).toHaveAttribute('aria-checked','true');
  await page.locator('#quality').selectOption('low');await page.locator('[data-action="close"]').click();
@@ -48,7 +49,7 @@ test('home, selectors, six live worlds and preferences persist without rendering
 });
 test('actual physics rewards centered drops, records a failed run and replays cleanly',async({page})=>{
  test.setTimeout(300_000);await page.setViewportSize({width:480,height:640});
- await ready(page);await page.locator('[data-action="vehicles"]').click();await choose(page,'car');await page.locator('[data-action="close"]').click();await page.locator('.selection-row[data-action="worlds"]').click();await choose(page,'space');await page.locator('[data-action="close"]').click();await page.locator('.play-button').click();
+ await ready(page);await page.locator('[data-action="vehicles"]').click();await choose(page,'car');await page.getByRole('button',{name:'Done',exact:true}).click();await page.locator('.selection-row[data-action="worlds"]').click();await choose(page,'space');await page.getByRole('button',{name:'Done',exact:true}).click();await page.locator('.play-button').click();
  for(let i=1;i<=3;i++){
    // Read positions and dispatch the normal keyboard input in the same frame.
    // The test never edits physics state, scores, vehicle positions, or time.
@@ -56,7 +57,7 @@ test('actual physics rewards centered drops, records a failed run and replays cl
    await page.waitForFunction((target:number)=>{const s=(window as any).stackline.snapshot();return s.stacks>=target||s.mode==='ended';},i,{timeout:60000});
    expect((await snapshot(page)).mode).toBe('playing');expect((await snapshot(page)).stacks).toBe(i);
  }
- const landed=await snapshot(page);expect(landed.score).toBeGreaterThanOrEqual(300);expect(landed.coins).toBeGreaterThan(120);expect(landed.height).toBeGreaterThan(3);
+ const landed=await snapshot(page);expect(landed.score).toBeGreaterThanOrEqual(300);expect(landed.coins).toBe(9);expect(landed.height).toBeGreaterThan(3);
  expect(landed.musicPlaying).toBe(true);expect(landed.musicLevel).toBeGreaterThan(.0001);
  await page.keyboard.press('Escape');await expect(page.getByRole('dialog')).toBeVisible();expect((await snapshot(page)).mode).toBe('paused');
  const before=await snapshot(page);await page.waitForTimeout(350);const after=await snapshot(page);expect(after.heldX).toBe(before.heldX);
@@ -76,10 +77,10 @@ test('actual physics rewards centered drops, records a failed run and replays cl
 });
 test('garage purchases use real saved coins and reject insufficient balance',async({page})=>{
  await ready(page);await page.locator('.garage-card').click();
- await choose(page,'sports');await expect(page.locator('#toast')).toContainText('30 more coins');expect((await snapshot(page)).coins).toBe(120);
+ await choose(page,'sports');await page.getByRole('button',{name:'Done',exact:true}).click();await expect(page.locator('#toast')).toContainText('150 more coins');expect((await snapshot(page)).coins).toBe(0);
  await page.locator('[data-action="close"]').click();
  await page.evaluate(()=>{const key='stackline.progress.v1',s=JSON.parse(localStorage.getItem(key)!);s.coins=200;localStorage.setItem(key,JSON.stringify(s));});
- await page.reload();await page.waitForFunction(()=>!!(window as any).stackline);await page.locator('.garage-card').click();await choose(page,'sports');
+ await page.reload();await page.waitForFunction(()=>!!(window as any).stackline);await page.locator('.garage-card').click();await choose(page,'sports');await page.getByRole('button',{name:'Done',exact:true}).click();
  expect((await snapshot(page)).coins).toBe(50);expect((await snapshot(page)).vehicle).toBe('sports');await page.reload();await page.waitForFunction(()=>!!(window as any).stackline);expect((await snapshot(page)).vehicle).toBe('sports');expect((await snapshot(page)).coins).toBe(50);
 });
 test('pause restart and home remove a vehicle still falling in the previous run',async({page})=>{
@@ -110,9 +111,10 @@ test('keyboard focus activates menu and gameplay buttons correctly',async({page}
 });
 test('background music starts on play, pauses, and respects its saved setting independently of effects',async({page})=>{
  test.setTimeout(180_000);await page.setViewportSize({width:480,height:640});await ready(page);
- expect(await snapshot(page)).toMatchObject({musicEnabled:true,musicPlaying:false});
- await page.locator('.selection-row[data-action="worlds"]').click();await choose(page,'space');await page.locator('[data-action="close"]').click();
+ expect(await snapshot(page)).toMatchObject({musicEnabled:true,musicPlaying:false,musicReady:true});
+ await page.locator('.selection-row[data-action="worlds"]').click();await choose(page,'space');await page.getByRole('button',{name:'Done',exact:true}).click();
  await page.locator('.play-button').click();
+ expect((await snapshot(page)).musicStartDelayMs).toBeLessThan(50);
  await expect.poll(async()=>{const s=await snapshot(page);return s.musicPlaying&&s.musicLevel>.06;}).toBe(true);
  await page.waitForTimeout(400);
  const averageLevel=await page.evaluate(async()=>{let sum=0;for(let i=0;i<12;i++){sum+=(window as any).stackline.snapshot().musicLevel;await new Promise(resolve=>setTimeout(resolve,80));}return sum/12;});
@@ -203,7 +205,8 @@ test('home stays fixed, vehicle and place lists swipe vertically, and every coll
     expect(await heading.boundingBox()).toEqual(headingBefore);expect(await page.evaluate(()=>scrollY)).toBe(0);
     if(action==='worlds'){
      await cards.last().tap();await expect(cards.last()).toHaveAttribute('aria-pressed','true');
-     expect((await snapshot(page)).world).toBe('beach');
+     expect((await snapshot(page)).world).toBe('space');
+     await expect(page.getByRole('button',{name:'Done',exact:true})).toBeVisible();
      expect(await list.evaluate(el=>el.scrollTop)).toBeCloseTo(scrolled,0);
     }
     await expectFits(page,'#modal');
@@ -228,12 +231,12 @@ test('home stays fixed, vehicle and place lists swipe vertically, and every coll
 
 test('real collisions play crash audio and the saved sound switch silences it',async({page})=>{
  test.setTimeout(180_000);await page.setViewportSize({width:480,height:640});
- await page.addInitScript(()=>{const key='stackline.progress.v1';if(!localStorage.getItem(key))localStorage.setItem(key,JSON.stringify({version:1,selectedVehicle:'car',selectedWorld:'space',settings:{quality:'low',sound:true,music:false}}));});
- await ready(page);await page.locator('.play-button').click();
+ await page.addInitScript(()=>{const key='stackline.progress.v1';if(!localStorage.getItem(key))localStorage.setItem(key,JSON.stringify({version:1,selectedVehicle:'car',selectedWorld:'space',settings:{quality:'low',sound:true,music:true}}));});
+ await ready(page);expect((await snapshot(page)).musicReady).toBe(true);await page.locator('.play-button').click();expect((await snapshot(page)).musicStartDelayMs).toBeLessThan(50);
  await page.waitForFunction(()=>{const s=(window as any).stackline.snapshot();if(s.held&&Math.abs(s.heldX-s.topX)<.12){document.dispatchEvent(new KeyboardEvent('keydown',{code:'Space',bubbles:true}));return true;}return false;},{},{timeout:65000,polling:'raf'});
- // Poll the actual output analyser during the physics collision, before the later bonus chime.
+ // Require the very first contact to produce sound, rather than accepting a later crash.
  await page.waitForFunction(()=>{const s=(window as any).stackline.snapshot();return s.crashPlays>0&&s.effectsLevel>.01&&s.lastImpactSpeed>1.15;},{},{timeout:60000,polling:10});
- const impact=await snapshot(page);expect(impact.musicPlaying).toBe(false);expect(impact.lastImpactSpeed).toBeGreaterThan(1.15);
+ const impact=await snapshot(page);expect(impact.crashPlays).toBe(1);expect(impact.stacks).toBe(0);expect(impact.musicPlaying).toBe(true);expect(impact.lastImpactSpeed).toBeGreaterThan(1.15);
  await page.keyboard.press('Escape');await page.getByRole('button',{name:'Back to home'}).click();
  await page.locator('[data-action="settings"]').click();await page.locator('[data-id="sound"]').click();
  await expect(page.locator('[data-id="sound"]')).toHaveAttribute('aria-checked','false');await page.locator('[data-action="close"]').click();
@@ -241,5 +244,31 @@ test('real collisions play crash audio and the saved sound switch silences it',a
  await page.locator('.play-button').click();
  await page.waitForFunction(()=>{const s=(window as any).stackline.snapshot();if(s.held&&Math.abs(s.heldX-s.topX)<.12){document.dispatchEvent(new KeyboardEvent('keydown',{code:'Space',bubbles:true}));return true;}return false;},{},{timeout:65000,polling:'raf'});
  await page.waitForFunction(()=>(window as any).stackline.snapshot().lastImpactSpeed>1.15,{},{timeout:60000});
- expect(await snapshot(page)).toMatchObject({crashPlays:0,effectsLevel:0,musicPlaying:false});
+ expect(await snapshot(page)).toMatchObject({crashPlays:0,effectsLevel:0,musicPlaying:true});
+});
+
+test('Done commits selections and purchases; closing cancels; reset needs confirmation and clears the saved game',async({page})=>{
+ test.setTimeout(240_000);await page.setViewportSize({width:390,height:844});
+ await page.addInitScript(()=>{const key='stackline.progress.v1';if(!localStorage.getItem(key))localStorage.setItem(key,JSON.stringify({version:1,coins:1000,selectedWorld:'beach',best:800,bestHeight:14,totalStacks:20,achievements:['first'],runs:[{score:800,stacks:8,height:14,world:'forest',date:'2026-10-19'}],settings:{quality:'low',sound:false,music:false}}));});
+ await ready(page);expect((await snapshot(page)).world).toBe('forest');
+ await page.getByRole('button',{name:'Change vehicle',exact:true}).click();await choose(page,'suv');
+ expect((await snapshot(page)).vehicle).toBe('mixed');await page.getByRole('button',{name:'Close dialog'}).click();
+ expect((await snapshot(page)).vehicle).toBe('mixed');
+ await page.getByRole('button',{name:'Change vehicle',exact:true}).click();await choose(page,'suv');await page.getByRole('button',{name:'Done',exact:true}).click();
+ expect((await snapshot(page)).vehicle).toBe('suv');
+ await page.getByRole('button',{name:'Change place',exact:true}).click();await choose(page,'snow');await page.getByRole('button',{name:'Close dialog'}).click();
+ expect(await snapshot(page)).toMatchObject({coins:1000,world:'forest',unlockedWorlds:['forest','city','space']});
+ await page.getByRole('button',{name:'Change place',exact:true}).click();await choose(page,'snow');await page.getByRole('button',{name:'Done',exact:true}).click();
+ expect(await snapshot(page)).toMatchObject({coins:850,world:'snow',unlockedWorlds:['forest','city','space','snow']});
+ await page.getByRole('button',{name:'Change vehicle',exact:true}).click();await choose(page,'sports');await page.getByRole('button',{name:'Done',exact:true}).click();
+ expect(await snapshot(page)).toMatchObject({coins:700,vehicle:'sports'});await page.reload();await page.waitForFunction(()=>!!(window as any).stackline);
+ expect(await snapshot(page)).toMatchObject({coins:700,world:'snow',vehicle:'sports'});
+ await page.getByRole('button',{name:'Settings',exact:true}).click();
+ page.once('dialog',async dialog=>{expect(dialog.type()).toBe('confirm');expect(dialog.message()).toContain('clears all coins');await dialog.dismiss();});
+ await page.getByRole('button',{name:'Reset game',exact:true}).click();expect((await snapshot(page)).coins).toBe(700);await expect(page.getByRole('dialog')).toBeVisible();
+ page.once('dialog',dialog=>dialog.accept());await page.getByRole('button',{name:'Reset game',exact:true}).click();
+ expect(await snapshot(page)).toMatchObject({mode:'home',coins:0,score:0,stacks:0,vehicle:'mixed',world:'forest',quality:'auto',musicEnabled:true,musicPlaying:false,unlocked:['mixed','car','suv','truck'],unlockedWorlds:['forest','city','space']});
+ const fresh=await page.evaluate(()=>JSON.parse(localStorage.getItem('stackline.progress.v1')!));
+ expect(fresh).toMatchObject({coins:0,best:0,bestHeight:0,totalStacks:0,achievements:[],runs:[],settings:{music:true,sound:true,haptics:true,reduceMotion:false,quality:'auto'}});
+ await page.reload();await page.waitForFunction(()=>!!(window as any).stackline);expect(await snapshot(page)).toMatchObject({coins:0,vehicle:'mixed',world:'forest',unlockedWorlds:['forest','city','space']});
 });

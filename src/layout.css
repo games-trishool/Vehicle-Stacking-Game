@@ -384,3 +384,26 @@ button, select { touch-action: manipulation; }
 @media (prefers-reduced-motion: reduce) {
   *, *:before, *:after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
+
+/* Selection actions remain outside the scrolling collection. */
+.selection-footer { display: flex; align-items: center; gap: 12px; border-top: 1px solid var(--line); margin-top: 12px; padding-top: 12px; }
+.selection-footer p { flex: 1; min-width: 0; font-size: 11px; line-height: 1.4; margin: 0; color: #75836a; }
+.selection-footer p .icon { width: 14px; height: 14px; }
+.selection-done { min-width: 118px; justify-content: center; gap: 8px; padding: 10px 22px; border-radius: 12px; }
+.selection-done .icon { width: 18px; height: 18px; }
+.reset-game-button { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 44px; flex-shrink: 0; border: 1px solid #d9b6a5; border-radius: 10px; color: #8d4132; background: #f5e9e1; margin-top: auto; }
+.reset-game-button .icon { width: 17px; height: 17px; }
+.play-button:disabled { opacity: .6; cursor: wait; }
+@media (max-height: 649px) {
+  .selection-footer { margin-top: 8px; padding-top: 8px; gap: 8px; }
+  .selection-footer p { font-size: 9px; }
+  .modal[data-screen="settings"] .modal-heading p, .modal[data-screen="settings"] .settings-note { display: none; }
+  .modal[data-screen="settings"] .setting-row { min-height: 50px; padding: 3px 0; }
+  .modal[data-screen="settings"] .setting-row p { display: none; }
+  .reset-game-button { margin-top: 10px; }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  .modal[data-screen="settings"] .settings-list { display: grid; grid-template-columns: 1fr 1fr; column-gap: 20px; }
+  .modal[data-screen="settings"] .setting-row:last-child { grid-column: 1 / -1; }
+  .reset-game-button { margin-top: auto; }
+}
