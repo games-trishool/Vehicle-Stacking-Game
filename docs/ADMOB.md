@@ -1,6 +1,6 @@
 # Test interstitials on Android
 
-Version 1.3.0 (Android version code 6) includes the Capacitor AdMob plugin and Google's Mobile Ads SDK. The shipped IDs are Google's Android demo IDs:
+Version 1.4.0 (Android version code 7) includes the Capacitor AdMob plugin and Google's Mobile Ads SDK. The shipped IDs are Google's Android demo IDs:
 
 - App: `ca-app-pub-3940256099942544~3347511713`, in `android/app/src/main/res/values/strings.xml`.
 - Interstitial: `ca-app-pub-3940256099942544/1033173712`, in `src/admob.ts`.
@@ -8,7 +8,7 @@ Version 1.3.0 (Android version code 6) includes the Capacitor AdMob plugin and G
 
 ## Install on your Pixel 8
 
-Use the included `releases/Stack-Vechiles-1.3.0-unsigned.aab`: run `node scripts/sign-aab.mjs`, reuse your existing upload key, and upload the signed bundle to the same Play Console app's Internal testing track. Update through the tester link. The AAB cannot be installed directly as an APK. Normal updates preserve your saved progress.
+Use the included `releases/Stack-Vechiles-1.4.0-unsigned.aab`: run `node scripts/sign-aab.mjs`, reuse your existing upload key, and upload the signed bundle to the same Play Console app's Internal testing track. Update through the tester link. The AAB cannot be installed directly as an APK. Normal updates preserve your saved progress.
 
 For local Android Studio testing from the ZIP:
 

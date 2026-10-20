@@ -7,6 +7,7 @@ import { landingReward } from './store.mjs';
 import { GameAudio } from './audio';
 import { watchSurfaceContacts } from './physics.mjs';
 import { ImpactGate } from './impacts.mjs';
+import { createVehicleBody } from './vehicle-physics.mjs';
 
 export interface Landing {perfect:boolean;combo:number;score:number;stacks:number;height:number;coins:number;stability:number;}
 type Item={mesh:THREE.Group;body:CANNON.Body;id:VehicleId;height:number;landedY:number};
@@ -38,6 +39,7 @@ export class StackingGame {
   get renderBudget(){return this.mode==='home'?30:60;}
   get adaptiveQualityReduced(){return this.adaptiveLow;}
   get vehicleCount(){let count=0;this.scene.traverse(object=>{if(object.userData.spec&&object.userData.id)count++;});return count;}
+  get vehicleTypes(){const ids:VehicleId[]=[];this.scene.traverse(object=>{if(object.userData.spec&&object.userData.id)ids.push(object.userData.id);});return ids;}
   resize(){const {width,height}=this.container.getBoundingClientRect();if(width<1||height<1)return;const current=this.renderer.getSize(this.renderSize);if(current.x!==width||current.y!==height)this.renderer.setSize(width,height);this.camera.aspect=width/height;this.camera.updateProjectionMatrix();this.invalidate();}
   private renderSize=new THREE.Vector2();
   configure(settings:{quality:string;reduceMotion:boolean;sound:boolean;music:boolean}){
@@ -96,11 +98,7 @@ export class StackingGame {
     const base=this.makeItem(this.pick(),0,.49);base.body.type=CANNON.Body.STATIC;base.body.mass=0;base.body.updateMassProperties();this.world.addBody(base.body);this.items.push(base);this.scene.add(base.mesh);this.top=.49+base.height;this.spawn();this.onStability(100);this.last=performance.now();this.performanceFrames=0;this.performanceTime=0;this.invalidate();
   }
   private makeItem(id:VehicleId,x:number,bottom:number):Item{
-    const spec=SPECS[id],body=new CANNON.Body({mass:id==='bus'?14:id==='tractor'?12:8,position:new CANNON.Vec3(x,bottom+spec.height/2,0),linearDamping:.25,angularDamping:.7,sleepSpeedLimit:.18,sleepTimeLimit:.7});
-    const cabHeight=spec.height-.91;
-    body.addShape(new CANNON.Box(new CANNON.Vec3(spec.length*.47,.25,spec.width*.45)),new CANNON.Vec3(0,.66-spec.height/2,0));
-    body.addShape(new CANNON.Box(new CANNON.Vec3(id==='bus'?spec.length*.48:id==='tractor'?.7:1.07,Math.max(.16,cabHeight/2),spec.width*.43)),new CANNON.Vec3(id==='tractor'?-.8:0,.91+Math.max(.32,cabHeight)/2-spec.height/2,0));
-    for(const wx of [-spec.length*.3,spec.length*.3])for(const wz of [-spec.width*.44,spec.width*.44])body.addShape(new CANNON.Sphere(.36),new CANNON.Vec3(wx,.38-spec.height/2,wz));
+    const spec=SPECS[id],body=createVehicleBody(id,x,bottom);
     body.addEventListener('collide',(event:{body:CANNON.Body;contact:CANNON.ContactEquation})=>{
       if(body.type!==CANNON.Body.DYNAMIC||(this.mode!=='playing'&&this.mode!=='ended'))return;
       const speed=Math.abs(event.contact.getImpactVelocityAlongNormal());

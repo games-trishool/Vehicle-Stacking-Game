@@ -1,0 +1,209 @@
+{
+  "renderer": "Chromium SwiftShader; geometry and batch counts, not device FPS",
+  "vehicles": [
+    {
+      "id": "car",
+      "triangles": 18148,
+      "batches": 9,
+      "size": [
+        4.678000211715698,
+        1.5649958801269532,
+        2.25
+      ],
+      "nominal": {
+        "length": 4.5,
+        "width": 1.85,
+        "height": 1.58,
+        "color": 9017766,
+        "mass": 8
+      }
+    },
+    {
+      "id": "suv",
+      "triangles": 18212,
+      "batches": 9,
+      "size": [
+        4.678000211715698,
+        1.963999981880188,
+        2.4000000953674316
+      ],
+      "nominal": {
+        "length": 4.5,
+        "width": 2,
+        "height": 1.95,
+        "color": 4345416,
+        "mass": 8
+      }
+    },
+    {
+      "id": "truck",
+      "triangles": 18472,
+      "batches": 9,
+      "size": [
+        5.077999830245972,
+        1.7949925613403321,
+        2.4000000953674316
+      ],
+      "nominal": {
+        "length": 4.9,
+        "width": 2,
+        "height": 1.82,
+        "color": 9140321,
+        "mass": 8
+      }
+    },
+    {
+      "id": "sports",
+      "triangles": 18460,
+      "batches": 9,
+      "size": [
+        4.778000116348267,
+        1.304990663528442,
+        2.359999895095825
+      ],
+      "nominal": {
+        "length": 4.6,
+        "width": 1.96,
+        "height": 1.32,
+        "color": 9969453,
+        "mass": 8
+      }
+    },
+    {
+      "id": "bus",
+      "triangles": 17260,
+      "batches": 8,
+      "size": [
+        5.778000116348267,
+        2.5499999499320984,
+        2.2690000534057617
+      ],
+      "nominal": {
+        "length": 5.6,
+        "width": 2.14,
+        "height": 2.55,
+        "color": 12172471,
+        "mass": 14
+      }
+    },
+    {
+      "id": "tractor",
+      "triangles": 16472,
+      "batches": 8,
+      "size": [
+        3.893499970436096,
+        2.289499981328845,
+        2.180000066757202
+      ],
+      "nominal": {
+        "length": 3.9,
+        "width": 2.05,
+        "height": 2.28,
+        "color": 3499080,
+        "mass": 12
+      }
+    },
+    {
+      "id": "ambulance",
+      "triangles": 17364,
+      "batches": 14,
+      "size": [
+        5.428000211715698,
+        2.6099999010562898,
+        2.559999942779541
+      ],
+      "nominal": {
+        "length": 5.25,
+        "width": 2.08,
+        "height": 2.64,
+        "color": 15330537,
+        "mass": 12
+      }
+    },
+    {
+      "id": "police",
+      "triangles": 17840,
+      "batches": 10,
+      "size": [
+        4.678000211715698,
+        1.9800000143051149,
+        2.190000057220459
+      ],
+      "nominal": {
+        "length": 4.5,
+        "width": 1.85,
+        "height": 1.72,
+        "color": 14936041,
+        "mass": 8.5
+      }
+    },
+    {
+      "id": "rickshaw",
+      "triangles": 11444,
+      "batches": 11,
+      "size": [
+        3.0950000286102295,
+        2.1600000894069673,
+        1.7799999713897705
+      ],
+      "nominal": {
+        "length": 3.2,
+        "width": 1.52,
+        "height": 2.16,
+        "color": 14200616,
+        "mass": 5
+      }
+    },
+    {
+      "id": "fireengine",
+      "triangles": 25360,
+      "batches": 12,
+      "size": [
+        5.827999830245972,
+        2.57500004529953,
+        2.6600000858306885
+      ],
+      "nominal": {
+        "length": 5.65,
+        "width": 2.18,
+        "height": 2.64,
+        "color": 11869477,
+        "mass": 15
+      }
+    },
+    {
+      "id": "dumptruck",
+      "triangles": 24592,
+      "batches": 12,
+      "size": [
+        5.678000211715698,
+        2.6500315642356873,
+        2.700000047683716
+      ],
+      "nominal": {
+        "length": 5.5,
+        "width": 2.22,
+        "height": 2.6,
+        "color": 14001454,
+        "mass": 16
+      }
+    },
+    {
+      "id": "mixer",
+      "triangles": 25430,
+      "batches": 11,
+      "size": [
+        5.827999830245972,
+        2.831074712276459,
+        2.680000066757202
+      ],
+      "nominal": {
+        "length": 5.65,
+        "width": 2.2,
+        "height": 2.8,
+        "color": 14804450,
+        "mass": 17
+      }
+    }
+  ]
+}

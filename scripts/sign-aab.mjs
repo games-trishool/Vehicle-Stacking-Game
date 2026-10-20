@@ -12,7 +12,7 @@ if(process.argv.includes('--help')){
  console.log('Usage: node scripts/sign-aab.mjs [unsigned.aab] [signed.aab]\nRequires a JDK (keytool and jarsigner); Android Studio includes one.\nThe prompts can create a new upload key or use your existing upload key.');
  process.exit(0);
 }
-const input=resolve(process.argv[2]||fileURLToPath(new URL('../releases/Stack-Vechiles-1.3.0-unsigned.aab',import.meta.url)));
+const input=resolve(process.argv[2]||fileURLToPath(new URL('../releases/Stack-Vechiles-1.4.0-unsigned.aab',import.meta.url)));
 const output=resolve(process.argv[3]||join(dirname(input),basename(input).replace(/(?:-unsigned)?\.aab$/i,'-signed.aab')));
 if(!existsSync(input)){console.error(`Bundle not found: ${input}`);process.exit(1);}
 if(input===output||existsSync(output)){console.error('Choose a new output filename; an existing bundle will not be overwritten.');process.exit(1);}

@@ -2,15 +2,9 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
-export type VehicleId = 'car'|'suv'|'truck'|'sports'|'bus'|'tractor';
-export const SPECS: Record<VehicleId,{length:number;width:number;height:number;color:number}> = {
-  car:{length:4.5,width:1.85,height:1.58,color:0x8999a6},
-  suv:{length:4.5,width:2,height:1.95,color:0x424e48},
-  truck:{length:4.9,width:2,height:1.82,color:0x8b7861},
-  sports:{length:4.6,width:1.96,height:1.32,color:0x981f2d},
-  bus:{length:5.6,width:2.14,height:2.55,color:0xb9bcb7},
-  tractor:{length:3.9,width:2.05,height:2.28,color:0x356448},
-};
+import {SPECS} from './vehicle-specs.mjs';
+export {SPECS};
+export type VehicleId=keyof typeof SPECS;
 // All shapes and textures are original, generated once, then shared by every clone.
 const geometries=new Map<string,THREE.BufferGeometry>();
 function cached(key:string,build:()=>THREE.BufferGeometry){if(!geometries.has(key))geometries.set(key,build());return geometries.get(key)!;}
@@ -147,11 +141,161 @@ function cabin(g:THREE.Group,c:Cabin,paint:THREE.Material,key:string){
     line(g,[[rear,base,side*width*.48],[(rear+front)/2,base-.015,side*width*.485],[front,base,side*width*.48]],alloy,.012);
   }
 }
+const fleetWhite=material(0xe8ece8,.35,.32,.55),fleetBlue=material(0x075b95,.35,.24,.5),
+ reflective=material(0xe7d968,.35,.32),orange=material(0xc16c27,.4,.36,.5);
+fleetBlue.emissive.setHex(0x064c9c);fleetBlue.emissiveIntensity=.45;
+const labelMaterials=new Map<string,THREE.Material>();
+function fleetLabel(g:THREE.Group,text:string,x:number,y:number,z:number,w:number,h:number,side:number){
+ if(!labelMaterials.has(text)){
+  const canvas=document.createElement('canvas');canvas.width=512;canvas.height=96;
+  const c=canvas.getContext('2d')!;c.clearRect(0,0,512,96);c.fillStyle='#ffffff';c.font='bold 64px Arial';c.textAlign='center';c.textBaseline='middle';c.fillText(text,256,49,494);
+  const map=new THREE.CanvasTexture(canvas);map.colorSpace=THREE.SRGBColorSpace;
+  labelMaterials.set(text,new THREE.MeshPhysicalMaterial({map,transparent:true,alphaTest:.15,roughness:.45,depthWrite:false}));
+ }
+ const decal=mesh(g,cached(`label/${w}/${h}`,()=>new THREE.PlaneGeometry(w,h)),labelMaterials.get(text)!,x,y,z);
+ if(side<0)decal.rotation.y=Math.PI;
+}
+function lightbar(g:THREE.Group,x:number,y:number,width:number){
+ box(g,x,y,0,.28,.07,width,dark,.025);
+ for(const side of [-1,1]){
+  box(g,x,y+.08,side*width*.32,.26,.13,width*.30,side<0?red:fleetBlue,.04);
+  for(let j=0;j<3;j++)box(g,x+.14,y+.08,side*width*.32+(j-1)*width*.075,.008,.072,.032,lamp,.003);
+ }
+}
+function fleetCab(g:THREE.Group,id:VehicleId,paint:THREE.Material){
+ const {length:L,width:W}=SPECS[id],cx=L/2-.76;
+ box(g,0,.59,0,L*.92,.27,W*.70,dark,.06);
+ box(g,cx,1.03,0,1.42,.83,W*.95,paint,.10);
+ cabin(g,{rear:cx-.71,rearRoof:cx-.63,frontRoof:cx+.37,front:cx+.70,base:1.38,roof:2.34,width:W*.94},paint,id);
+ box(g,cx-.1,2.37,0,1.13,.06,W*.77,paint,.04);
+ for(const side of [-1,1]){
+  box(g,cx-.45,1.26,side*W*.481,.25,.035,.035,alloy,.006);
+  line(g,[[cx-.65,.73,side*W*.48],[cx-.65,1.35,side*W*.48]],seam,.008);
+  rod(g,[cx+.36,1.70,side*W*.45],[cx+.31,1.70,side*(W/2+.18)],.023,alloy);
+  box(g,cx+.31,1.72,side*(W/2+.18),.18,.29,.12,dark,.03);
+  box(g,cx-.12,.62,side*(W/2-.04),.63,.075,.22,brake,.015);
+ }
+ const axles=id==='ambulance'?[-1.55,1.63]:[-1.82,-.68,1.84],radius=id==='ambulance'?.40:.44;
+ for(const x of axles)for(const side of [-1,1]){
+  wheel(g,x,side*(W/2-.13),radius);
+  const arch=mesh(g,cached(`fleet-arch/${radius}`,()=>new THREE.TorusGeometry(radius+.045,.026,5,20,Math.PI)),dark,x,radius,side*(W/2+.005));
+  arch.rotation.z=0;
+ }
+ box(g,L/2+.015,1.08,0,.035,.28,W*.55,dark,.025);
+ for(let j=0;j<5;j++)box(g,L/2+.04,.97+j*.045,0,.014,.013,W*.49,alloy,.003);
+}
+function fleetVehicle(g:THREE.Group,id:VehicleId,paint:THREE.Material){
+ const {width:W}=SPECS[id];
+ if(id==='police'){
+  for(const x of [-1.395,1.395])for(const side of [-1,1])wheel(g,x,side*(W/2-.115),.38);
+  body(g,'car',paint);cabin(g,{rear:-1.57,rearRoof:-.87,frontRoof:.48,front:1.30,base:.96,roof:1.535,width:W},dark,id);
+  mesh(g,cached('police-hood',()=>{
+   const sections:Section[]=[];
+   for(let j=0;j<=12;j++){
+    const x=1.26+j*.87/12,t=(x+2.25)/4.5,top=interpolate([[.5,1.02],[1.665,.94],[2.25,.74]],x)+.009,half=W*.5*(.84+.16*Math.pow(Math.sin(Math.PI*t),.45));
+    sections.push({x,ring:[[top,0],[top-.018,half*.66],[top-.065,half*.90],[top-.075,half*.90],[top-.01,0],[top-.075,-half*.90],[top-.065,-half*.90],[top-.018,-half*.66]]});
+   }
+   return loft(sections);
+  }),dark);lightbar(g,-.18,1.60,1.16);
+  for(const side of [-1,1]){
+   box(g,-.18,.81,side*(W/2+.005),2.08,.29,.022,dark,.01);fleetLabel(g,'POLICE',-.18,.82,side*(W/2+.02),1.30,.19,side);
+   box(g,-.25,1.03,side*(W/2+.015),.19,.025,.03,alloy,.007);
+   rod(g,[.84,1.10,side*.85],[.84,1.12,side*1.02],.022,dark);box(g,.84,1.16,side*1.03,.24,.12,.13,dark,.025);
+  }
+  rod(g,[-.87,1.55,.18],[-.87,1.98,.18],.008,dark);
+  return;
+ }
+ if(id==='rickshaw'){
+  const green=material(0x1d654c,.45,.38,.4),canopy=material(0x202624,0,.89);
+  for(const side of [-1,1])wheel(g,-.95,side*.64,.34);wheel(g,1.13,0,.32);
+  box(g,-.1,.51,0,2.69,.22,1.19,dark,.06);box(g,-.93,.92,0,1.08,.72,1.43,green,.12);
+  box(g,-.70,1.06,0,.51,.16,1.11,canopy,.07);box(g,-1.02,1.31,0,.12,.47,1.11,canopy,.05);
+  box(g,.36,.74,0,.38,.21,.62,canopy,.04);box(g,1.24,1.01,0,.57,.75,.99,paint,.15);
+  cabin(g,{rear:.86,rearRoof:.87,frontRoof:1.08,front:1.49,base:1.18,roof:1.98,width:1.23},paint,id);
+  box(g,-.18,2.08,0,2.65,.16,1.43,canopy,.075);
+  for(const side of [-1,1]){
+   for(const x of [-1.44,.58])rod(g,[x,.92,side*.64],[x,2.03,side*.64],.027,dark);
+   rod(g,[-1.43,1.45,side*.67],[.30,1.45,side*.67],.022,alloy);
+   box(g,-.91,1.26,side*.72,1.0,.15,.015,paint,.01);
+   box(g,-1.49,.88,side*.47,.025,.15,.12,red,.016);
+   rod(g,[.97,.34,side*.1],[1.24,1.14,side*.1],.023,alloy);
+   rod(g,[.83,1.55,side*.45],[.83,1.58,side*.86],.018,dark);box(g,.83,1.61,side*.86,.13,.16,.06,dark,.02);
+  }
+  rod(g,[.64,.81,0],[.89,1.40,0],.024,dark);rod(g,[.89,1.40,-.23],[.89,1.40,.23],.025,dark);
+  const headlight=mesh(g,cached('rickshaw-headlight',()=>new THREE.CylinderGeometry(.13,.13,.07,24)),lamp,1.55,1.13,0);headlight.rotation.z=Math.PI/2;
+  box(g,1.57,.73,0,.04,.11,.35,fleetWhite,.01);return;
+ }
+ fleetCab(g,id,paint);
+ if(id==='ambulance'){
+  box(g,-.68,1.73,0,3.76,1.68,W*.97,paint,.07);box(g,-.68,2.58,0,3.70,.06,W*.94,fleetWhite,.025);
+  lightbar(g,1.83,2.43,1.38);
+  for(const side of [-1,1]){
+   const z=side*(W*.49+.015);
+   box(g,-.68,1.24,z,3.73,.20,.025,orange,.003);box(g,-.68,1.08,z,3.73,.035,.028,reflective,.002);
+   box(g,-.68,1.63,z,3.18,.29,.025,fleetBlue,.006);
+   box(g,-1.44,2.13,z,.78,.45,.028,glass,.03);box(g,-.05,2.11,z,1.12,.48,.030,fleetBlue,.025);
+   box(g,-.05,2.11,z+side*.02,.36,.10,.012,fleetWhite,.004);box(g,-.05,2.11,z+side*.02,.10,.35,.012,fleetWhite,.004);
+   fleetLabel(g,'AMBULANCE',-.68,1.63,z+side*.02,2.70,.20,side);
+   for(const x of [-2.19,.82])box(g,x,2.49,z,.18,.07,.03,fleetBlue,.012);
+  }
+  box(g,-2.58,1.70,0,.032,1.58,W*.89,paint,.03);
+  for(const side of [-1,1]){box(g,-2.603,2.12,side*.48,.018,.41,.61,glass,.03);box(g,-2.61,1.46,side*.10,.025,.20,.025,alloy,.006);}
+ }else if(id==='fireengine'){
+  box(g,-.81,1.66,0,3.77,1.49,W*.96,paint,.06);lightbar(g,1.90,2.43,1.43);
+  for(const side of [-1,1]){
+   const z=side*(W*.49+.012);
+   box(g,-.81,1.03,z,3.75,.12,.024,reflective,.006);
+   for(const x of [-1.95,-.88,.18]){
+    box(g,x,1.70,z,.94,.91,.027,brake,.02);
+    for(let j=0;j<9;j++)box(g,x,1.32+j*.09,z+side*.02,.88,.012,.012,alloy,.002);
+    box(g,x,1.31,z+side*.028,.29,.035,.018,dark,.005);
+   }
+   fleetLabel(g,'FIRE RESCUE',-.83,2.29,z+side*.01,2.75,.14,side);
+   rod(g,[-2.6,2.51,side*.38],[.91,2.51,side*.38],.035,alloy);
+   const hose=mesh(g,cached('hose-reel',()=>new THREE.TorusGeometry(.28,.07,8,24)),dark,-2.15,1.35,z+side*.04);hose.rotation.z=0;
+  }
+  for(let x=-2.55;x<.95;x+=.27)rod(g,[x,2.51,-.38],[x,2.51,.38],.022,alloy);
+  box(g,-2.72,1.65,0,.08,1.16,1.16,brake,.02);
+  for(const z of [-.30,0,.30]){const pump=mesh(g,cached('pump-outlet',()=>new THREE.CylinderGeometry(.10,.10,.07,16)),alloy,-2.78,1.69,z);pump.rotation.z=Math.PI/2;}
+ }else if(id==='dumptruck'){
+  const bed=material(0x777867,.65,.52),gravel=material(0x655f50,.05,.98);
+  box(g,-.87,1.19,0,3.66,.20,W*.94,bed,.025);
+  for(const side of [-1,1]){
+   box(g,-.87,1.94,side*(W/2-.055),3.67,1.31,.11,paint,.035);
+   for(let j=0;j<6;j++)box(g,-2.47+j*.61,1.92,side*(W/2+.017),.065,1.20,.045,bed,.009);
+   box(g,-.87,1.39,side*(W/2+.04),3.55,.055,.026,reflective,.004);
+  }
+  box(g,-2.65,1.95,0,.11,1.30,W*.97,paint,.035);box(g,.92,1.97,0,.11,1.34,W*.97,paint,.025);
+  box(g,-.85,2.28,0,3.32,.23,W*.86,gravel,.10);
+  for(let j=0;j<12;j++){
+   const rock=mesh(g,cached('gravel-rock',()=>new THREE.DodecahedronGeometry(.17,0)),gravel,-2.27+(j%6)*.55,2.45+((j*7)%3)*.018,j<6?-.44:.40);rock.rotation.set(j*.7,j*.6,j*.4);
+  }
+  for(const side of [-1,1]){rod(g,[-.7,.83,side*.48],[.44,1.19,side*.48],.045,alloy);box(g,-2.73,1.34,side*.69,.10,.17,.12,dark,.01);}
+ }else if(id==='mixer'){
+  for(const x of [-1.85,.12])box(g,x,1.03,0,.20,.50,1.54,dark,.025);
+  const drum=mesh(g,cached('concrete-drum',()=>{
+   const profile=[[0,-1.61],[.32,-1.61],[.38,-1.35],[.78,-.91],[.91,-.45],[.92,.27],[.78,.83],[.49,1.32],[0,1.32]];
+   const geo=new THREE.LatheGeometry(profile.map(([r,x])=>new THREE.Vector2(r,x)),40);geo.rotateZ(-Math.PI/2);return geo;
+  }),orange,-.84,1.86,0);drum.rotation.z=.035;
+  const spiral:number[][]=[];
+  for(let j=0;j<=72;j++){
+   const x=-1.34+j*2.56/72,r=interpolate([[-1.34,.40],[-.91,.79],[-.45,.92],[.27,.93],[.83,.79],[1.22,.54]],x),a=j/72*Math.PI*6;
+   spiral.push([-.84+x,1.86+Math.cos(a)*r+x*.035,Math.sin(a)*r]);
+  }
+  line(g,spiral,fleetWhite,.043);
+  box(g,-2.54,2.03,0,.35,.31,.68,orange,.04);
+  const chute=box(g,-2.66,1.29,0,.27,.95,.40,brake,.04);chute.rotation.z=-.16;
+  for(const side of [-1,1])rod(g,[-2.61,.72,side*.58],[-2.61,2.14,side*.58],.022,alloy);
+  for(let y=.84;y<2.12;y+=.23)rod(g,[-2.64,y,.47],[-2.64,y,.68],.023,alloy);
+ }
+}
 const models=new Map<string,THREE.Group>();
 export function createVehicle(id:VehicleId,color?:number){
   const key=id+String(color);if(models.has(key))return models.get(key)!.clone();
   const s=SPECS[id],g=new THREE.Group(),paint=material(color??s.color,.62,.27,.82),L=s.length,W=s.width;
-  if(id==='tractor'){
+  if(['ambulance','police','rickshaw','fireengine','dumptruck','mixer'].includes(id)){
+    fleetVehicle(g,id,paint);
+  }else if(id==='tractor'){
     for(const x of [-1.16,1.16])for(const side of [-1,1])wheel(g,x,side*(x<0?.83:.78),x<0?.67:.46,true);
     box(g,0,.60,0,3.35,.30,1.25,dark,.08);
     box(g,.65,1.04,0,2.43,.76,1.2,paint,.16);
@@ -214,13 +358,13 @@ export function createVehicle(id:VehicleId,color?:number){
     }
   }
   // Recessed grille, separate light lenses, bumper trim and exhaust finish the silhouette.
-  const front=id==='tractor'?1.86:L/2,lampY=id==='bus'?.91:id==='tractor'?1.18:id==='sports'?.55:id==='suv'?.72:.63;
-  for(const side of [-1,1]){
+  const front=id==='tractor'?1.86:L/2,lampY=['ambulance','fireengine','dumptruck','mixer'].includes(id)?1.03:id==='bus'?.91:id==='tractor'?1.18:id==='sports'?.55:id==='suv'?.72:.63;
+  if(id!=='rickshaw')for(const side of [-1,1]){
     box(g,front+.018,lampY,side*W*.34,.037,.115,id==='bus'?.29:.36,dark,.025);
     box(g,front+.040,lampY+.014,side*W*.34,.012,.052,id==='bus'?.24:.30,lamp,.012);
     box(g,-L/2-.025,id==='bus'?1.0:.73,side*W*.36,.025,id==='bus'?.30:.12,.22,red,.018);
   }
-  if(id!=='tractor'){
+  if(id!=='tractor'&&id!=='rickshaw'){
     box(g,L/2+.02,.53,0,.035,.18,W*.52,dark,.035);
     for(let j=0;j<4;j++)box(g,L/2+.044,.47+j*.039,0,.008,.008,W*.47,alloy,.002);
     box(g,L/2+.024,.36,0,.04,.045,W*.84,dark,.009);

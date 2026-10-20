@@ -32,6 +32,23 @@ npm run preview     # serve the production bundle
 
 The browser tests use `/usr/bin/chromium` by default. Set `CHROMIUM_PATH` to a locally installed Chromium binary elsewhere. They use software WebGL, exercise real inputs and rigid-body simulation, and never replace physics or scores with mocked state.
 
+## Expanded vehicle fleet — 1.4.0
+
+Six new original 3D models join the game: **Ambulance, Police car, Auto rickshaw, Fire engine, Dump truck, and Cement mixer**. That makes **12 vehicles plus Mixed mode**. Emergency vehicles have light bars and markings; the rickshaw has three wheels and an open cabin; the fire engine carries a ladder and equipment bays; the dump truck has a loaded bed; and the mixer has a shaped drum, chute, and access ladder.
+
+| New vehicle | Unlock cost |
+| --- | ---: |
+| Auto rickshaw | 200 coins |
+| Ambulance | 400 coins |
+| Police car | 450 coins |
+| Fire engine | 500 coins |
+| Dump truck | 550 coins |
+| Cement mixer | 600 coins |
+
+The first three vehicles remain free. Existing coins, purchases, choices, and records are preserved. New unlocks join the random pool in Mixed mode, or choose one vehicle and tap Done to use it alone. Cancel discards the pending choice. The picker and Garage scroll through all 13 cards with their action buttons fixed. Collision-driven crash sounds also apply to the new fleet. New collector achievements require every vehicle; previously earned achievements are retained.
+
+![Six new vehicle models](docs/fleet-additions-1.4.0.png)
+
 ## AdMob test interstitials — 1.3.0
 
 The native Android app preloads a Google test interstitial and presents it after every third completed game, before the results screen. Pausing, restarting, or returning home before losing does not count. The counter survives reopening; Reset game clears it. If no ad is ready, that break is skipped without waiting or showing it later during play. Music/effects stay silent during the ad, and replay controls return only after dismissal or a presentation failure.
@@ -51,7 +68,7 @@ To change the original score, edit `src/music-score.ts` and run `node scripts/re
 
 ## Vehicle and impact update — 1.1.0
 
-All six vehicles now have curved body shells, shaped wheel arches, reflective tinted glass, metallic clearcoat paint, panel seams, mirrors, tire tread, brake discs, and detailed alloy rims. The pickup has an open bed; the SUV has roof rails; the sports car has a rear spoiler; the bus has individual glazing and doors; the tractor has chunky agricultural tires and cab steps. These are original generated models, shared and batched into 8–9 draw calls per vehicle, with approximately 16,500–18,500 triangles each.
+The original six vehicles received curved body shells, shaped wheel arches, reflective tinted glass, metallic clearcoat paint, panel seams, mirrors, tire tread, brake discs, and detailed alloy rims. The pickup has an open bed; the SUV has roof rails; the sports car has a rear spoiler; the bus has individual glazing and doors; the tractor has chunky agricultural tires and cab steps. These are original generated models, shared and batched into 8–9 draw calls per vehicle, with approximately 16,500–18,500 triangles each.
 
 ![All six updated vehicle models](docs/vehicles-1.1.0.png)
 
@@ -59,12 +76,12 @@ Collisions now play an original layered chassis thud, metal crunch, panel resona
 
 ## Included
 
-- Six vehicle types: classic coupe, SUV, pickup, sports car, city bus, tractor. Each has original generated 3D bodywork, glass, lighting details, trim, tires, and rims. Models are batched by material to reduce draw calls.
+- Twelve vehicle types: classic coupe, SUV, pickup, sports car, city bus, tractor, ambulance, police car, auto rickshaw, fire engine, dump truck, cement mixer. Each has original generated 3D bodywork, glass, lighting details, trim, tires, and rims. Models are batched by material to reduce draw calls.
 - Fixed-vehicle selection and mixed mode, which draws only from unlocked vehicles.
 - Forest, night city, space, snow mountains, desert, and beach worlds, built from 3D geometry. Clouds move, beach water animates, and the camera climbs with the physical tower.
 - Gravity, compound rigid-body collision shapes, friction, impact settling, stability monitoring, slow-motion perfect landings, camera shake, and collision particles.
 - Synthesized sound effects, an original looping background score with independent music and effects controls, optional vibration, and reduced-motion settings. The score is bundled as an original Ogg track, decoded before Play and reused without composing or scheduling individual notes during gameplay.
-- Earned coins, three unlockable vehicles and three unlockable places, six achievements, high scores, and local leaderboards. A new or reset save starts with zero coins. Normal landings earn **1 coin**; perfect landings earn **3 coins**, regardless of combo. Combos multiply points only.
+- Earned coins, nine unlockable vehicles and three unlockable places, six achievements, high scores, and local leaderboards. A new or reset save starts with zero coins. Normal landings earn **1 coin**; perfect landings earn **3 coins**, regardless of combo. Combos multiply points only.
 - Saved choices, settings, purchases, achievements, scores, and coins in versioned local storage. Invalid or unavailable storage does not prevent play.
 - A polished wooden platform with plank grain, a warm rim, and fine brass trim in every world.
 - Fixed viewport desktop and mobile UI with large touch controls, vertically scrolling vehicle/place lists, keyboard controls, accessible native dialogs, self-hosted fonts, and adaptive rendering quality.
@@ -109,6 +126,7 @@ The master app icon is `public/icons/icon-512.png`. To regenerate its browser, A
 - `src/game.ts`: renderer, camera, physical tower, input-facing gameplay API, timing, landing detection, effects.
 - `src/physics.mjs`: platform and ground collision monitoring for every dynamic vehicle, including previously stacked vehicles.
 - `src/vehicles.ts`: detailed procedural vehicle meshes and material-batched model cache.
+- `src/vehicle-specs.mjs` / `src/vehicle-physics.mjs`: dimensions, masses, and shared gameplay collision bodies, including three-wheel and three-axle layouts.
 - `src/scenery.ts`: environment geometry, foliage and ground textures, lighting, atmospheric animation.
 - `src/main.ts` / `src/style.css` / `src/layout.css`: menus, HUD, fixed viewport layouts, scrollable selection dialogs, achievements, and progression integration.
 - `src/store.mjs`: versioned saves, vehicle costs, achievement definitions, reward rules, personal rankings.

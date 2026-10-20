@@ -1,12 +1,20 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { createVehicle,type VehicleId } from './vehicles';
+import { createVehicle,SPECS,type VehicleId } from './vehicles';
 export function vehicleThumbnails(){
  const result:Record<string,string>={},renderer=new THREE.WebGLRenderer({alpha:true,antialias:true});renderer.setSize(340,190);renderer.setPixelRatio(1);renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.2;renderer.outputColorSpace=THREE.SRGBColorSpace;
  const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(33,340/190,.1,100);camera.position.set(7,4.2,7);camera.lookAt(0,1,0);
  const room=new RoomEnvironment(),pmrem=new THREE.PMREMGenerator(renderer),target=pmrem.fromScene(room,.04);scene.environment=target.texture;
  scene.add(new THREE.HemisphereLight(0xfff5dd,0x69796b,3));const sun=new THREE.DirectionalLight(0xfff6e6,3);sun.position.set(-5,9,7);scene.add(sun);
- for(const id of ['car','suv','truck','sports','bus','tractor'] as VehicleId[]){const model=createVehicle(id);scene.add(model);renderer.render(scene,camera);result[id]=renderer.domElement.toDataURL('image/webp');scene.remove(model);}
+ for(const id of Object.keys(SPECS) as VehicleId[]){
+  const model=createVehicle(id),bounds=new THREE.Box3().setFromObject(model),center=bounds.getCenter(new THREE.Vector3());
+  const direction=new THREE.Vector3(7,3.2,7).normalize();camera.position.copy(center).addScaledVector(direction,10);camera.lookAt(center);camera.updateMatrixWorld();
+  const inverse=camera.matrixWorldInverse.clone(),tan=Math.tan(THREE.MathUtils.degToRad(camera.fov/2));let distance=0;
+  for(const x of [bounds.min.x,bounds.max.x])for(const y of [bounds.min.y,bounds.max.y])for(const z of [bounds.min.z,bounds.max.z]){
+   const p=new THREE.Vector3(x,y,z).applyMatrix4(inverse);distance=Math.max(distance,10+p.z+Math.abs(p.y)*1.12/tan,10+p.z+Math.abs(p.x)*1.12/(tan*camera.aspect));
+  }
+  camera.position.copy(center).addScaledVector(direction,distance);camera.lookAt(center);scene.add(model);renderer.render(scene,camera);result[id]=renderer.domElement.toDataURL('image/webp');scene.remove(model);
+ }
  result.mixed=result.suv;target.dispose();room.dispose();pmrem.dispose();renderer.dispose();renderer.forceContextLoss();return result;
 }
 export function worldArt(id:string){

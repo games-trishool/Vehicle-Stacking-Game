@@ -1,9 +1,9 @@
 # Android App Bundle
 
-`Stack-Vechiles-1.3.0-unsigned.aab` includes native Android AdMob test interstitials after completed games 3, 6, 9, and so on. Google demo IDs and test mode are enabled; no revenue ads are served. Ads preload without blocking gameplay; unavailable ads are skipped, and results/replay wait for dismissal. The browser version remains ad-free. See [the Android ad test instructions](../docs/ADMOB.md). The bundle is **unsigned**: sign it with the existing upload key before using Play Console Internal testing.
+`Stack-Vechiles-1.4.0-unsigned.aab` adds Ambulance, Police car, Auto rickshaw, Fire engine, Dump truck, and Cement mixer, bringing the fleet to 12 vehicles plus Mixed mode. New vehicles unlock with earned coins; existing saves are preserved. It includes native Android AdMob test interstitials after completed games 3, 6, 9, and so on. Google demo IDs and test mode are enabled; no revenue ads are served. Ads preload without blocking gameplay; unavailable ads are skipped, and results/replay wait for dismissal. The browser version remains ad-free. See [the Android ad test instructions](../docs/ADMOB.md). The bundle is **unsigned**: sign it with the existing upload key before using Play Console Internal testing.
 
 - Application ID: `com.trishool.stackline`
-- Version: `1.3.0` / version code `6`
+- Version: `1.4.0` / version code `7`
 - Minimum Android API: `23`; target Android API: `35`
 
 Check Play Console's current target API requirement before submission. This bundle does not certify compliance with current store policies. If this package has already been uploaded, subsequent releases must use a higher version code and the registered upload key.
@@ -20,7 +20,7 @@ No `npm install` or Android SDK build is required for this signing step. If Java
 
 The helper asks whether to use an existing upload keystore or create a new one. If it finds the key previously created in your user folder, reusing it is the default. **For an update to the app already registered in Play Console, use its registered upload key and the same password.** For a new app you can create a new upload key. Passwords are hidden and passed to Java tools through child-process environment variables, never command-line password values or saved files. Your private key stays on your PC. New keys default to `.stack-vechiles-signing/upload-keystore.p12` in your user folder, outside this repository. Back up that file and its password securely.
 
-The signed result is `releases/Stack-Vechiles-1.3.0-signed.aab`. The helper verifies its signature. Upload **that signed file** as a new release in the same Play Console app's Internal testing track. The package ID and local save format are unchanged, so normal in-place updates retain saved progress. It does not upload or publish automatically.
+The signed result is `releases/Stack-Vechiles-1.4.0-signed.aab`. The helper verifies its signature. Upload **that signed file** as a new release in the same Play Console app's Internal testing track. The package ID and local save format are unchanged, so normal in-place updates retain saved progress. It does not upload or publish automatically.
 
 For a different input or output filename:
 

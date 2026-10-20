@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { initialState,loadState,saveState,unlockVehicle,unlockWorld,resetState,landingReward,recordRun,STORAGE_KEY } from '../src/store.mjs';
+import { initialState,loadState,saveState,unlockVehicle,unlockWorld,resetState,landingReward,recordRun,STORAGE_KEY,VEHICLES } from '../src/store.mjs';
 const memory=()=>{const data=new Map();return{getItem:k=>data.get(k),setItem:(k,v)=>data.set(k,v)};};
 test('perfect chains reward skill and cap the multiplier at 5',()=>{
  assert.deepEqual(landingReward(false,0),{points:40,coins:1});
@@ -10,6 +10,18 @@ test('perfect chains reward skill and cap the multiplier at 5',()=>{
 test('unlocking spends coins once and rejects unaffordable purchases',()=>{
  const state=initialState();assert.equal(unlockVehicle(state,'sports'),false);assert.equal(state.coins,0);
  state.coins=200;assert.equal(unlockVehicle(state,'sports'),true);assert.equal(state.coins,50);assert.equal(unlockVehicle(state,'sports'),true);assert.equal(state.coins,50);assert.equal(unlockVehicle(state,'invalid'),false);
+});
+test('the expanded fleet unlocks individually, persists, and requires all twelve for the collector achievement',()=>{
+ const state=initialState(),s=memory();state.coins=5000;
+ for(const id of ['sports','bus','tractor'])assert.equal(unlockVehicle(state,id),true);
+ assert.equal(state.achievements.includes('collector'),false);
+ for(const id of ['rickshaw','ambulance','police','fireengine','dumptruck','mixer']){
+  const cost=VEHICLES.find(v=>v.id===id).cost,before=state.coins;
+  assert.ok(cost>0);assert.equal(unlockVehicle(state,id),true);assert.equal(state.coins,before-cost);
+  assert.equal(unlockVehicle(state,id),true);assert.equal(state.coins,before-cost);
+  state.selectedVehicle=id;saveState(s,state);assert.deepEqual(loadState(s),state);
+ }
+ assert.equal(state.unlocked.length,13);assert.deepEqual(state.achievements,['collector']);
 });
 test('vehicle, world, settings and progress survive a storage round trip',()=>{
  const s=memory(),state=initialState();state.selectedVehicle='truck';state.selectedWorld='space';state.settings.sound=false;state.settings.music=false;state.achievements.push('perfect');state.coins=984;

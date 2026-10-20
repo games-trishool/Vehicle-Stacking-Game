@@ -1,4 +1,5 @@
 import {test,expect,type Page} from '@playwright/test';
+import {VEHICLES} from '../../src/store.mjs';
 async function ready(page:Page){
  await page.addInitScript(()=>{const key='stackline.progress.v1';if(!localStorage.getItem(key))localStorage.setItem(key,JSON.stringify({version:1,settings:{quality:'low',sound:false}}));});
  await page.goto('/');await page.waitForFunction(()=>!!(window as any).stackline);await expect(page.locator('#loading')).toHaveCount(0);
@@ -178,7 +179,7 @@ test('home stays fixed, vehicle and place lists swipe vertically, and every coll
  }
  for(const size of [{width:320,height:480},{width:320,height:568},{width:390,height:844},{width:844,height:390}]){
   await page.setViewportSize(size);
-  for(const [action,cardSelector,total] of [['vehicles','.vehicle-card',7],['worlds','.world-card',6],['garage','.vehicle-card',7],['achievements','.achievement-card',6],['leaderboard','.ranking-row',10],['settings','',0],['howto','',0]] as const){
+  for(const [action,cardSelector,total] of [['vehicles','.vehicle-card',VEHICLES.length],['worlds','.world-card',6],['garage','.vehicle-card',VEHICLES.length],['achievements','.achievement-card',6],['leaderboard','.ranking-row',10],['settings','',0],['howto','',0]] as const){
    const opener=action==='vehicles'?'[aria-label="Change vehicle"]':action==='worlds'?'[aria-label="Change place"]':action==='garage'?'.garage-card':action==='leaderboard'?'.record-card':`[data-action="${action}"]:visible`;
    await page.locator(opener).first().tap();await expectFits(page,'#modal');
    if(action==='vehicles'&&size.width===390)await page.screenshot({path:'test-results/mobile-vehicle-pages.png'});

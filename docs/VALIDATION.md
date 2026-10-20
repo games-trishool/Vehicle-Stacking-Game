@@ -1,8 +1,18 @@
-# Validation — 1.3.0
+# Validation — 1.4.0
 
 The prepared cloud environment builds and runs the game. All production assets, including music, are bundled locally.
 
-## AdMob test integration — 1.3.0
+## Expanded fleet — 1.4.0
+
+- `npm test`: **41 tests passed**, with no failures or skips. Fourteen new checks cover full catalog/spec consistency, independent gameplay bodies, three rickshaw wheels and three-axle heavy trucks, centered Cannon ES drops for all six additions, first platform/ground contacts after misses, individual unlock costs, persistence, and requiring all 12 vehicles for newly earned collector achievements. The prior progression, audio, physics, and ad tests also pass.
+- `npm run build` and `npx cap sync android` passed. All 12 vehicle types generate their picker thumbnails, using model bounds to fit larger trucks and the rickshaw without clipping. The picker count is derived from the catalog, now 12 actual vehicles plus Mixed mode. The original six collision shapes and masses are preserved through the shared body factory.
+- The actual 3D models were rendered into [the new-vehicle gallery](fleet-additions-1.4.0.png) and [the full fleet gallery](fleet-1.4.0.png), and visually reviewed. All mesh positions/normals were checked for finite values. The [model report](vehicle-metrics-1.4.0.json) records 10–14 material batches and 11,444–25,430 triangles for the six additions. Templates, materials, and geometry remain shared across drops. Emergency lenses add no point lights. Model geometry and software-renderer checks do not establish Pixel 8 frame rates.
+- All **four focused browser checks passed** (5.7 minutes). The fleet check buys all six additions through the real picker, verifies thumbnail images, balances, selected-only gameplay, persisted purchases after reload, and the 9/12 unlock count. Normal centered inputs earn actual landing rewards with both the rickshaw and mixer. The mobile check reaches all 13 cards by real touch swipes across small portrait/landscape layouts while Cancel/Done remain fixed. Existing real-physics/replay and native-bridge third-game ad checks also pass.
+- Android `bundleRelease` passed. Google bundletool 1.17.1 validation passed for `Stack-Vechiles-1.4.0-unsigned.aab` (**8,224,668 bytes**). Its package is `com.trishool.stackline`, version code **7**, version **1.4.0**, minimum API 23, target API 35, with no debuggable flag. ZIP integrity and byte equality of all **31 production web assets** passed; SHA-256 is in `releases/SHA256SUMS.txt`.
+- The local signing helper passed both new-key and existing-key flows using a temporary key. Independent `jarsigner` verification passed; temporary keys and signed outputs were deleted. No production upload key is included. Sign the shared unsigned bundle with the owner's existing key.
+- Physical Pixel 8 checks remain necessary for tall mixed towers, new-truck handling, startup time, sound balance, warmth, and native ad/activity behavior. Browser play still has no native AdMob ads; Android uses Google test IDs.
+
+## Previous AdMob checks — 1.3.0
 
 - `npm test`: **27 tests passed**, including seven new ad checks. They exercise the real frequency controller and native event adapter for games 3/6, counter persistence/reset, slow loads, background rejection, load/show errors, duplicate presentation prevention, cache expiry, and unavailable/corrupt storage. The native show request resolving is explicitly insufficient to release controls; dismissal or failure must arrive.
 - `npm run build` and `npx cap sync android` passed. Android includes `@capacitor-community/admob` 7.2.0, Google Mobile Ads 24.7.0, and UMP 3.1.0, with native versions pinned. Only Google's demo App ID and interstitial ID are used; initialization and requests force test mode. No live monetization is enabled.

@@ -4,8 +4,14 @@ export const VEHICLES = [
   {id:'suv', name:'Trail SUV', subtitle:'Built for the great outdoors', cost:0, color:'#758b6f', label:'ADVENTURE READY'},
   {id:'truck', name:'Pickup truck', subtitle:'A little more muscle', cost:0, color:'#c57854', label:'HEAVY DUTY'},
   {id:'sports', name:'Sport GT', subtitle:'Low, fast, perfectly balanced', cost:150, color:'#c95049', label:'PRECISION'},
+  {id:'rickshaw', name:'Auto rickshaw', subtitle:'Three wheels. Endless character.', cost:200, color:'#d8af28', label:'CITY FAVORITE'},
   {id:'bus', name:'City bus', subtitle:'Make room for big ambitions', cost:250, color:'#dbc062', label:'BIG ENERGY'},
   {id:'tractor', name:'Field tractor', subtitle:'A whole new kind of horsepower', cost:350, color:'#64997e', label:'COUNTRY CLASSIC'},
+  {id:'ambulance', name:'Ambulance', subtitle:'A lifesaver for your next climb', cost:400, color:'#e9ece9', label:'FIRST RESPONSE'},
+  {id:'police', name:'Police car', subtitle:'Keep your tower under control', cost:450, color:'#e3e7e9', label:'ON PATROL'},
+  {id:'fireengine', name:'Fire engine', subtitle:'Big rescue. Bigger ambitions.', cost:500, color:'#b51d25', label:'RESCUE CREW'},
+  {id:'dumptruck', name:'Dump truck', subtitle:'Build a tower with serious muscle', cost:550, color:'#d5a52e', label:'HEAVY HAULER'},
+  {id:'mixer', name:'Cement mixer', subtitle:'Mix things up on the way to the top', cost:600, color:'#c16c27', label:'SOLID FOUNDATIONS'},
 ];
 export const WORLDS = [
   {id:'forest',cost:0,name:'Realistic Forest',subtitle:'Golden light. Endless possibilities.',tone:'#718b5b',tag:'GOLDEN HOUR'},

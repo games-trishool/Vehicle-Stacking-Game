@@ -59,10 +59,10 @@ Crash audio uses three original buffers prepared during loading in 1.2.0 and reu
 
 ## Pixel 8 checks before the next release
 
-1. Sign the 1.3.0 AAB with the registered upload key, upload version code 6 to the same app's Internal testing track, and update through Google Play. Keep the existing install so save preservation can be checked.
+1. Sign the 1.4.0 AAB with the registered upload key, upload version code 7 to the same app's Internal testing track, and update through Google Play. Keep the existing install so save preservation can be checked.
 2. Test Auto for at least ten minutes in Forest and Night City. Look for delayed taps, uneven camera motion, warmth, and audio interruptions. Compare Battery saver if the phone gets warm.
 3. Open menus, pause, leave the app, and return. The run should stay paused and music should remain stopped until **Keep climbing**. Repeat after locking the phone.
-4. Check a centered drop, a corner miss, a tall tower, and replay. Replay must clear the old tower and reset score and run coins.
+4. Check a centered drop, a corner miss, a tall tower, and replay. Repeat with the new rickshaw, ambulance, police car, fire engine, dump truck, and mixer, especially transitions from smaller cars to heavy trucks in Mixed mode. Replay must clear the old tower and reset score and run coins.
 5. On a fresh launch, tap Play without opening another menu. Check immediate music and sound on the very first collision. Drop several different vehicles and compare soft and hard crashes with music on/off. Turn **Sound effects** off and verify impacts stay silent after reopening.
 6. Try a free choice and a paid choice in each selector. Cancel must cancel; Done must save and charge only once. Test insufficient coins.
 7. Cancel Reset game and confirm nothing changes. Then, only on a test save, confirm reset and verify zero coins, free choices, default settings, and cleared records after reopening.
@@ -70,3 +70,10 @@ Crash audio uses three original buffers prepared during loading in 1.2.0 and reu
 9. Force-close and reopen. Verify vehicle, place, music preference, coins, and high score. Check offline launch after the native app has been installed.
 
 The original game and this game have separate Play testing requirements. Starting or completing a different game's closed test does not establish production access for this package.
+
+
+## Expanded fleet — 1.4.0
+
+The [current model report](vehicle-metrics-1.4.0.json) measures all 12 models. New vehicles remain material-batched and share cached geometry/materials across drops. The rickshaw uses three visible wheels and three physical wheel contacts. The heavy fire, dump, and mixer trucks use three axles. The mixer uses tapered drum collision hulls; its spiral stripe and the fire ladder are static details so they add no per-frame model animation work. Emergency light lenses use emissive materials without adding dynamic point lights.
+
+The [new fleet gallery](fleet-additions-1.4.0.png) and [complete fleet gallery](fleet-1.4.0.png) are rendered from the actual game models. These are geometry/rendering checks in software Chromium, not new Pixel 8 frame-time or thermal measurements. The existing automatic graphics and shadow/light budgets remain in place. Check startup time, tall mixed towers, and warm-device behavior on the phone before rollout.
