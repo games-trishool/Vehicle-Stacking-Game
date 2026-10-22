@@ -2,7 +2,7 @@
 
 A complete, touch-friendly 3D vehicle stacking game built with Three.js, Cannon ES, TypeScript, and Capacitor. The home screen, garage, environments, progression, and gameplay work without an account or remote assets.
 
-![Stack Vechiles home screen](docs/home-desktop.png)
+![Updated Forest scene rendering](docs/forest-1.5.0.png)
 
 ## Play and develop
 
@@ -31,6 +31,20 @@ npm run preview     # serve the production bundle
 ```
 
 The browser tests use `/usr/bin/chromium` by default. Set `CHROMIUM_PATH` to a locally installed Chromium binary elsewhere. They use software WebGL, exercise real inputs and rigid-body simulation, and never replace physics or scores with mocked state.
+
+## Natural lighting and impact damage — 1.5.0
+
+All 12 vehicles now use finer paint roughness, reflective laminated glazing, detailed light lenses, glazing seals and wipers, and subdued cabin details. Reflections match the selected world through original environment panoramas instead of a fixed studio-light environment. Paint and trim keep their material batches and shared undamaged geometry.
+
+Vehicle contacts produce **windshield cracks, broken-out glass, roof dents, and door dents/scuffs**. Repeated or stronger impacts increase the visible damage, with short-lived glass chips at the impact. Both the arriving vehicle and the supporting vehicle can be marked. Damage belongs to the individual vehicle instance, so another copy of the same car stays pristine until it is hit; replay/home clear the damaged run.
+
+Damage changes the rendered panels. The rigid collision hulls, supporting roof rails, stacking rewards, and ground-contact loss rule retain their established behavior. This is bounded cosmetic deformation rather than a soft-body crash simulation; doors are dented, not detached. Glass chips share a bounded instance pool.
+
+The environments also have a new pass: 3D radial pine branches, alpha-textured broadleaf foliage clusters, blade grass, bark/soil/rock surface variation, continuous eroded mountain ridges, atmospheric sky gradients and soft clouds. Night City has lit facade textures, setbacks and warmer streetlights. Beach has curved palm trunks, feathered fronds, normal-mapped water and shoreline foam. Snow, sand dunes, and the planets/moon in Space use their own procedural surface detail.
+
+All visual assets remain original, procedural and bundled for offline play. They are not photographic scans. Auto/High/Battery saver and the 30/60 FPS rendering budgets remain available; empirical Pixel 8 frame rates, warmth and battery use still need device testing. Current validation is recorded in [VALIDATION.md](docs/VALIDATION.md).
+
+![Rendered impact damage example](docs/vehicle-damage-1.5.0.png)
 
 ## Expanded vehicle fleet — 1.4.0
 
@@ -78,8 +92,8 @@ Collisions now play an original layered chassis thud, metal crunch, panel resona
 
 - Twelve vehicle types: classic coupe, SUV, pickup, sports car, city bus, tractor, ambulance, police car, auto rickshaw, fire engine, dump truck, cement mixer. Each has original generated 3D bodywork, glass, lighting details, trim, tires, and rims. Models are batched by material to reduce draw calls.
 - Fixed-vehicle selection and mixed mode, which draws only from unlocked vehicles.
-- Forest, night city, space, snow mountains, desert, and beach worlds, built from 3D geometry. Clouds move, beach water animates, and the camera climbs with the physical tower.
-- Gravity, compound rigid-body collision shapes, friction, impact settling, stability monitoring, slow-motion perfect landings, camera shake, and collision particles.
+- Forest, night city, space, snow mountains, desert, and beach worlds, with original procedural surface textures, atmospheric skies and world-matched reflections. Clouds move, beach water animates, and the camera climbs with the physical tower.
+- Gravity, compound rigid-body collision shapes, friction, impact settling, stability monitoring, slow-motion perfect landings, camera shake, and collision particles. Individual vehicles show cosmetic windshield breakage, roof/door dents, scuffs and short-lived glass fragments.
 - Synthesized sound effects, an original looping background score with independent music and effects controls, optional vibration, and reduced-motion settings. The score is bundled as an original Ogg track, decoded before Play and reused without composing or scheduling individual notes during gameplay.
 - Earned coins, nine unlockable vehicles and three unlockable places, six achievements, high scores, and local leaderboards. A new or reset save starts with zero coins. Normal landings earn **1 coin**; perfect landings earn **3 coins**, regardless of combo. Combos multiply points only.
 - Saved choices, settings, purchases, achievements, scores, and coins in versioned local storage. Invalid or unavailable storage does not prevent play.
@@ -89,7 +103,7 @@ Collisions now play an original layered chassis thud, metal crunch, panel resona
 
 ## Android
 
-The native project uses application ID `com.trishool.stackline`, Capacitor 7, Java 21, and Android API 35. All game assets are packaged locally; gameplay does not depend on CDN access.
+The native project uses application ID `com.trishool.stackline`, version **1.5.0 / code 8**, Capacitor 7, Java 21, and Android API 35. All game assets are packaged locally; gameplay does not depend on CDN access.
 
 A prebuilt **unsigned release AAB** and local signing instructions are included in [releases/README.md](releases/README.md). Run `node scripts/sign-aab.mjs` to sign it on your PC using an existing upload key or a newly created key. Private keys stay on your PC. Check Play Console's current target API requirement before submission.
 
@@ -127,7 +141,9 @@ The master app icon is `public/icons/icon-512.png`. To regenerate its browser, A
 - `src/physics.mjs`: platform and ground collision monitoring for every dynamic vehicle, including previously stacked vehicles.
 - `src/vehicles.ts`: detailed procedural vehicle meshes and material-batched model cache.
 - `src/vehicle-specs.mjs` / `src/vehicle-physics.mjs`: dimensions, masses, and shared gameplay collision bodies, including three-wheel and three-axle layouts.
-- `src/scenery.ts`: environment geometry, foliage and ground textures, lighting, atmospheric animation.
+- `src/scenery.ts`: environment geometry, 3D foliage, terrain materials, skies, clouds, water and atmospheric animation.
+- `src/world-lighting.ts`: generated environment panoramas and world-matched PBR reflections.
+- `src/vehicle-damage.ts` / `src/damage-rules.mjs`: per-instance cosmetic deformation, glazing cracks/breakage, scuffs, bounded glass fragments, contact filtering and coordinate conversion.
 - `src/main.ts` / `src/style.css` / `src/layout.css`: menus, HUD, fixed viewport layouts, scrollable selection dialogs, achievements, and progression integration.
 - `src/store.mjs`: versioned saves, vehicle costs, achievement definitions, reward rules, personal rankings.
 - `src/impacts.mjs`: collision strength/cooldown rules and original crash waveform synthesis.
@@ -138,7 +154,7 @@ The master app icon is `public/icons/icon-512.png`. To regenerate its browser, A
 
 ## Release work still required
 
-The vehicle meshes and environments are original procedural art with PBR materials; they are not scanned or licensed photorealistic production assets. Collision hulls approximate the vehicle shapes to keep stacking responsive. A production realism pass can replace this art with professionally authored, optimized models and textures while retaining the game systems.
+The vehicle meshes, surface textures and environments are original procedural art with PBR materials; they are not scanned photographic assets. Collision hulls approximate the vehicle shapes to keep stacking responsive. Impact damage is cosmetic and retains those rigid hulls; full soft-body deformation and detached-door physics are not implemented.
 
 Rankings are local to the device. Global authenticated leaderboards, cloud saves, and anti-cheat require a backend and are not simulated here. Native Android includes Google Mobile Ads for test interstitials; its SDK makes network requests. Browser play has no ads. No analytics service or real-money transactions are implemented. Live monetization is not enabled in this test build.
 

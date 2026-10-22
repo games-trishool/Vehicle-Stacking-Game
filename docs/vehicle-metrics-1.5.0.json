@@ -1,0 +1,527 @@
+{
+  "source": "8a45016-dirty",
+  "renderer": "Chromium SwiftShader; isolated model geometry and damage checks, not device FPS",
+  "impact": {
+    "strength": 0.9,
+    "count": 2,
+    "fromAbove": true
+  },
+  "vehicles": [
+    {
+      "id": "car",
+      "name": "Classic coupe",
+      "pristine": {
+        "triangles": 19310,
+        "meshBatches": 9,
+        "lineBatches": 0
+      },
+      "damaged": {
+        "triangles": 22464,
+        "meshBatches": 10,
+        "lineBatches": 1
+      },
+      "damage": {
+        "hits": 2,
+        "glass": "shattered",
+        "roofDent": 0.12,
+        "doorDent": 0.22,
+        "ownedGeometryCount": 4,
+        "glassRemovedTriangles": 44
+      },
+      "sharedTemplateUnchanged": true,
+      "geometryFinite": true,
+      "bounds": {
+        "min": [
+          -2.380000114440918,
+          4.76837147544984e-9,
+          -1.125
+        ],
+        "max": [
+          2.2980000972747803,
+          1.5649958848953247,
+          1.125
+        ]
+      },
+      "nominal": {
+        "length": 4.5,
+        "width": 1.85,
+        "height": 1.58,
+        "color": 9017766,
+        "mass": 8
+      }
+    },
+    {
+      "id": "suv",
+      "name": "Trail SUV",
+      "pristine": {
+        "triangles": 19374,
+        "meshBatches": 9,
+        "lineBatches": 0
+      },
+      "damaged": {
+        "triangles": 22940,
+        "meshBatches": 10,
+        "lineBatches": 1
+      },
+      "damage": {
+        "hits": 2,
+        "glass": "shattered",
+        "roofDent": 0.12,
+        "doorDent": 0.22,
+        "ownedGeometryCount": 4,
+        "glassRemovedTriangles": 30
+      },
+      "sharedTemplateUnchanged": true,
+      "geometryFinite": true,
+      "bounds": {
+        "min": [
+          -2.380000114440918,
+          4.76837147544984e-9,
+          -1.2000000476837158
+        ],
+        "max": [
+          2.2980000972747803,
+          1.9639999866485596,
+          1.2000000476837158
+        ]
+      },
+      "nominal": {
+        "length": 4.5,
+        "width": 2,
+        "height": 1.95,
+        "color": 4345416,
+        "mass": 8
+      }
+    },
+    {
+      "id": "truck",
+      "name": "Pickup truck",
+      "pristine": {
+        "triangles": 19634,
+        "meshBatches": 9,
+        "lineBatches": 0
+      },
+      "damaged": {
+        "triangles": 23230,
+        "meshBatches": 10,
+        "lineBatches": 1
+      },
+      "damage": {
+        "hits": 2,
+        "glass": "shattered",
+        "roofDent": 0.12,
+        "doorDent": 0.22,
+        "ownedGeometryCount": 4,
+        "glassRemovedTriangles": 42
+      },
+      "sharedTemplateUnchanged": true,
+      "geometryFinite": true,
+      "bounds": {
+        "min": [
+          -2.5799999237060547,
+          4.76837147544984e-9,
+          -1.2000000476837158
+        ],
+        "max": [
+          2.497999906539917,
+          1.7949925661087036,
+          1.2000000476837158
+        ]
+      },
+      "nominal": {
+        "length": 4.9,
+        "width": 2,
+        "height": 1.82,
+        "color": 9140321,
+        "mass": 8
+      }
+    },
+    {
+      "id": "sports",
+      "name": "Sport GT",
+      "pristine": {
+        "triangles": 19622,
+        "meshBatches": 9,
+        "lineBatches": 0
+      },
+      "damaged": {
+        "triangles": 22720,
+        "meshBatches": 10,
+        "lineBatches": 1
+      },
+      "damage": {
+        "hits": 2,
+        "glass": "shattered",
+        "roofDent": 0.12,
+        "doorDent": 0.22,
+        "ownedGeometryCount": 4,
+        "glassRemovedTriangles": 76
+      },
+      "sharedTemplateUnchanged": true,
+      "geometryFinite": true,
+      "bounds": {
+        "min": [
+          -2.430000066757202,
+          -1.4305114426349519e-8,
+          -1.1799999475479126
+        ],
+        "max": [
+          2.3480000495910645,
+          1.3049906492233276,
+          1.1799999475479126
+        ]
+      },
+      "nominal": {
+        "length": 4.6,
+        "width": 1.96,
+        "height": 1.32,
+        "color": 9969453,
+        "mass": 8
+      }
+    },
+    {
+      "id": "bus",
+      "name": "City bus",
+      "pristine": {
+        "triangles": 17260,
+        "meshBatches": 8,
+        "lineBatches": 0
+      },
+      "damaged": {
+        "triangles": 22422,
+        "meshBatches": 9,
+        "lineBatches": 1
+      },
+      "damage": {
+        "hits": 2,
+        "glass": "shattered",
+        "roofDent": 0.12,
+        "doorDent": 0.22,
+        "ownedGeometryCount": 3,
+        "glassRemovedTriangles": 12
+      },
+      "sharedTemplateUnchanged": true,
+      "geometryFinite": true,
+      "bounds": {
+        "min": [
+          -2.930000066757202,
+          2.38418573772492e-9,
+          -1.1345000267028809
+        ],
+        "max": [
+          2.8480000495910645,
+          2.549999952316284,
+          1.1345000267028809
+        ]
+      },
+      "nominal": {
+        "length": 5.6,
+        "width": 2.14,
+        "height": 2.55,
+        "color": 12172471,
+        "mass": 14
+      }
+    },
+    {
+      "id": "tractor",
+      "name": "Field tractor",
+      "pristine": {
+        "triangles": 17634,
+        "meshBatches": 8,
+        "lineBatches": 0
+      },
+      "damaged": {
+        "triangles": 20146,
+        "meshBatches": 9,
+        "lineBatches": 1
+      },
+      "damage": {
+        "hits": 2,
+        "glass": "shattered",
+        "roofDent": 0.12,
+        "doorDent": 0.22,
+        "ownedGeometryCount": 3,
+        "glassRemovedTriangles": 14
+      },
+      "sharedTemplateUnchanged": true,
+      "geometryFinite": true,
+      "bounds": {
+        "min": [
+          -1.9874999523162842,
+          -0.019500000402331352,
+          -1.090000033378601
+        ],
+        "max": [
+          1.906000018119812,
+          2.2699999809265137,
+          1.090000033378601
+        ]
+      },
+      "nominal": {
+        "length": 3.9,
+        "width": 2.05,
+        "height": 2.28,
+        "color": 3499080,
+        "mass": 12
+      }
+    },
+    {
+      "id": "ambulance",
+      "name": "Ambulance",
+      "pristine": {
+        "triangles": 18526,
+        "meshBatches": 14,
+        "lineBatches": 0
+      },
+      "damaged": {
+        "triangles": 22518,
+        "meshBatches": 15,
+        "lineBatches": 1
+      },
+      "damage": {
+        "hits": 2,
+        "glass": "shattered",
+        "roofDent": 0.12,
+        "doorDent": 0.22,
+        "ownedGeometryCount": 8,
+        "glassRemovedTriangles": 22
+      },
+      "sharedTemplateUnchanged": true,
+      "geometryFinite": true,
+      "bounds": {
+        "min": [
+          -2.755000114440918,
+          -5.9604645663569045e-9,
+          -1.2799999713897705
+        ],
+        "max": [
+          2.6730000972747803,
+          2.609999895095825,
+          1.2799999713897705
+        ]
+      },
+      "nominal": {
+        "length": 5.25,
+        "width": 2.08,
+        "height": 2.64,
+        "color": 15330537,
+        "mass": 12
+      }
+    },
+    {
+      "id": "police",
+      "name": "Police car",
+      "pristine": {
+        "triangles": 19002,
+        "meshBatches": 11,
+        "lineBatches": 0
+      },
+      "damaged": {
+        "triangles": 22156,
+        "meshBatches": 12,
+        "lineBatches": 1
+      },
+      "damage": {
+        "hits": 2,
+        "glass": "shattered",
+        "roofDent": 0.12,
+        "doorDent": 0.22,
+        "ownedGeometryCount": 5,
+        "glassRemovedTriangles": 44
+      },
+      "sharedTemplateUnchanged": true,
+      "geometryFinite": true,
+      "bounds": {
+        "min": [
+          -2.380000114440918,
+          4.76837147544984e-9,
+          -1.0950000286102295
+        ],
+        "max": [
+          2.2980000972747803,
+          1.9800000190734863,
+          1.0950000286102295
+        ]
+      },
+      "nominal": {
+        "length": 4.5,
+        "width": 1.85,
+        "height": 1.72,
+        "color": 14936041,
+        "mass": 8.5
+      }
+    },
+    {
+      "id": "rickshaw",
+      "name": "Auto rickshaw",
+      "pristine": {
+        "triangles": 12222,
+        "meshBatches": 11,
+        "lineBatches": 0
+      },
+      "damaged": {
+        "triangles": 13666,
+        "meshBatches": 12,
+        "lineBatches": 1
+      },
+      "damage": {
+        "hits": 2,
+        "glass": "shattered",
+        "roofDent": 0.12,
+        "doorDent": 0.22,
+        "ownedGeometryCount": 6,
+        "glassRemovedTriangles": 21
+      },
+      "sharedTemplateUnchanged": true,
+      "geometryFinite": true,
+      "bounds": {
+        "min": [
+          -1.5049999952316284,
+          -3.5762786065873797e-9,
+          -0.8899999856948853
+        ],
+        "max": [
+          1.590000033378601,
+          2.1600000858306885,
+          0.8899999856948853
+        ]
+      },
+      "nominal": {
+        "length": 3.2,
+        "width": 1.52,
+        "height": 2.16,
+        "color": 14200616,
+        "mass": 5
+      }
+    },
+    {
+      "id": "fireengine",
+      "name": "Fire engine",
+      "pristine": {
+        "triangles": 26522,
+        "meshBatches": 12,
+        "lineBatches": 0
+      },
+      "damaged": {
+        "triangles": 29438,
+        "meshBatches": 13,
+        "lineBatches": 1
+      },
+      "damage": {
+        "hits": 2,
+        "glass": "shattered",
+        "roofDent": 0.12,
+        "doorDent": 0.22,
+        "ownedGeometryCount": 6,
+        "glassRemovedTriangles": 22
+      },
+      "sharedTemplateUnchanged": true,
+      "geometryFinite": true,
+      "bounds": {
+        "min": [
+          -2.9549999237060547,
+          2.38418573772492e-9,
+          -1.3300000429153442
+        ],
+        "max": [
+          2.872999906539917,
+          2.575000047683716,
+          1.3300000429153442
+        ]
+      },
+      "nominal": {
+        "length": 5.65,
+        "width": 2.18,
+        "height": 2.64,
+        "color": 11869477,
+        "mass": 15
+      }
+    },
+    {
+      "id": "dumptruck",
+      "name": "Dump truck",
+      "pristine": {
+        "triangles": 25754,
+        "meshBatches": 12,
+        "lineBatches": 0
+      },
+      "damaged": {
+        "triangles": 29418,
+        "meshBatches": 13,
+        "lineBatches": 1
+      },
+      "damage": {
+        "hits": 2,
+        "glass": "shattered",
+        "roofDent": 0.12,
+        "doorDent": 0.22,
+        "ownedGeometryCount": 6,
+        "glassRemovedTriangles": 22
+      },
+      "sharedTemplateUnchanged": true,
+      "geometryFinite": true,
+      "bounds": {
+        "min": [
+          -2.880000114440918,
+          2.38418573772492e-9,
+          -1.350000023841858
+        ],
+        "max": [
+          2.7980000972747803,
+          2.650031566619873,
+          1.350000023841858
+        ]
+      },
+      "nominal": {
+        "length": 5.5,
+        "width": 2.22,
+        "height": 2.6,
+        "color": 14001454,
+        "mass": 16
+      }
+    },
+    {
+      "id": "mixer",
+      "name": "Cement mixer",
+      "pristine": {
+        "triangles": 26592,
+        "meshBatches": 11,
+        "lineBatches": 0
+      },
+      "damaged": {
+        "triangles": 30112,
+        "meshBatches": 12,
+        "lineBatches": 1
+      },
+      "damage": {
+        "hits": 2,
+        "glass": "shattered",
+        "roofDent": 0.12,
+        "doorDent": 0.22,
+        "ownedGeometryCount": 6,
+        "glassRemovedTriangles": 22
+      },
+      "sharedTemplateUnchanged": true,
+      "geometryFinite": true,
+      "bounds": {
+        "min": [
+          -2.9549999237060547,
+          2.38418573772492e-9,
+          -1.340000033378601
+        ],
+        "max": [
+          2.872999906539917,
+          2.8310747146606445,
+          1.340000033378601
+        ]
+      },
+      "nominal": {
+        "length": 5.65,
+        "width": 2.2,
+        "height": 2.8,
+        "color": 14804450,
+        "mass": 17
+      }
+    }
+  ]
+}

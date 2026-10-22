@@ -1,0 +1,106 @@
+{
+  "source": "8a45016-dirty",
+  "renderer": "Chromium SwiftShader",
+  "viewport": "960x640",
+  "pixelRatio": 1,
+  "scenario": "Identical original four-vehicle mixed tower; one submitted High frame and one Battery-saver frame per world.",
+  "limitations": "Submission/triangle counts only. No physical-device FPS, frame-time, thermal, or battery measurements.",
+  "worlds": [
+    {
+      "id": "forest",
+      "name": "Realistic Forest",
+      "high": {
+        "drawCalls": 53,
+        "triangles": 175070,
+        "shadowMap": 2048,
+        "cityLightBudget": 8
+      },
+      "low": {
+        "drawCalls": 53,
+        "triangles": 175070,
+        "shadows": false,
+        "cityLightBudget": 2
+      }
+    },
+    {
+      "id": "city",
+      "name": "Night City",
+      "high": {
+        "drawCalls": 52,
+        "triangles": 93896,
+        "shadowMap": 2048,
+        "cityLightBudget": 8
+      },
+      "low": {
+        "drawCalls": 52,
+        "triangles": 93896,
+        "shadows": false,
+        "cityLightBudget": 2
+      }
+    },
+    {
+      "id": "space",
+      "name": "Outer Space",
+      "high": {
+        "drawCalls": 57,
+        "triangles": 93388,
+        "shadowMap": 2048,
+        "cityLightBudget": 8
+      },
+      "low": {
+        "drawCalls": 57,
+        "triangles": 93388,
+        "shadows": false,
+        "cityLightBudget": 2
+      }
+    },
+    {
+      "id": "snow",
+      "name": "Snow Mountains",
+      "high": {
+        "drawCalls": 52,
+        "triangles": 149692,
+        "shadowMap": 2048,
+        "cityLightBudget": 8
+      },
+      "low": {
+        "drawCalls": 52,
+        "triangles": 149692,
+        "shadows": false,
+        "cityLightBudget": 2
+      }
+    },
+    {
+      "id": "desert",
+      "name": "Desert",
+      "high": {
+        "drawCalls": 62,
+        "triangles": 116750,
+        "shadowMap": 2048,
+        "cityLightBudget": 8
+      },
+      "low": {
+        "drawCalls": 62,
+        "triangles": 116750,
+        "shadows": false,
+        "cityLightBudget": 2
+      }
+    },
+    {
+      "id": "beach",
+      "name": "Beach",
+      "high": {
+        "drawCalls": 55,
+        "triangles": 109590,
+        "shadowMap": 2048,
+        "cityLightBudget": 8
+      },
+      "low": {
+        "drawCalls": 55,
+        "triangles": 109590,
+        "shadows": false,
+        "cityLightBudget": 2
+      }
+    }
+  ]
+}

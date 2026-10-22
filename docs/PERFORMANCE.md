@@ -5,12 +5,37 @@ This pass targets mobile rendering cost and idle battery use. Pixel 8 is the own
 ## Rendering changes
 
 - Home preview rendering is capped at 30 FPS; gameplay rendering is capped at 60 FPS, including on high-refresh displays. These are maximum budgets, not guaranteed frame rates.
-- Menus and pauses stop scheduling WebGL frames after pending layout/render work settles. A scene or graphics change requests a new frame; closing the menu resumes animation. The inactive app stops scheduling frames, and visibility restoration retains the pause until the player resumes.
+- Menus and pauses stop rendering after pending layout/render and shader preparation work settles. A scene or graphics change requests a new frame and prepares any new effect variants once; closing the menu resumes animation. The inactive app stops scheduling frames, and visibility restoration retains the pause until the player resumes.
 - Clouds and platform details share geometry. Palms, asteroids, dunes, and cacti use local batches so the renderer can still cull distant groups. Static scenery and vehicle subparts avoid recomposing unchanged local transforms every frame.
 - Camera and particle helpers are reused, and vehicle syncing avoids temporary arrays each frame. Water uses simulation elapsed time, so it also freezes during pauses.
 - Scenery instances and collision particles explicitly release their instance buffers when removed. Shared vehicle geometry remains cached for reuse.
 - On phones, Auto uses a 1024-pixel shadow map and up to four city point lights. High retains 2048-pixel shadows and all eight lights; Battery saver disables shadows and limits city point lights to two. Visible lamp models remain present at every setting.
 - Automatic reduction judges sustained gameplay frame intervals only. Home's 30 FPS budget and idle menu time do not trigger a quality downgrade.
+
+## Natural scenery and impact damage — 1.5.0
+
+The [current model report](vehicle-metrics-1.5.0.json) checks all 12 original models, including finite geometry and isolation of damaged copies from their cached templates. Pristine vehicles use 8–14 mesh batches and 12,222–26,592 triangles. After two strong roof impacts, the same models use 9–15 mesh batches, one crack/scuff line batch, and 13,666–30,112 triangles. The extra mesh is the dark cabin backing behind missing windshield glass. This is additional visual cost, not a performance improvement claim.
+
+Only damaged instances clone their geometry. Shared subdivision templates are prepared during loading without changing pristine buffers; each vehicle accepts at most four damage updates. Roof/door displacement is bounded, and the rigid gameplay hulls retain their existing support and contact rules. Both vehicles in a collision can receive damage. Damage events are queued after the physics step, with at most four applications in one rendered frame. Instance cloning, deformation and crack projection still require CPU work: test for impact-time frame spikes on the Pixel 8.
+
+The first regression run caught a first-impact hitch that prevented the browser check from observing the brief crash-audio peak. A software-renderer CPU profile recorded an approximately 0.88-second impact task, with about 0.80 seconds in shader/program initialization and about 60ms in damage application. Audio had been scheduled in a running context; its peak was over before the blocked main thread could sample it. These are diagnostic observations from the cloud renderer, not Pixel 8 timings.
+
+Before enabling Play, the game now prepares shared subdivision and compiles/draws the new chip, crack and exposed-cabin material variants on the game renderer. Tiny temporary proxies sit below the opaque ground, then release their private geometry/instance buffer. An actual warm-up draw completes lazy driver/uniform work that shader compilation alone can defer. The same preparation is keyed by world, shadows and active light count after graphics changes; obsolete pending variants are discarded. Live fragment data stays untouched, and pending work/warm frames are included in rendering diagnostics. The original first-collision audio assertion passes after this change, without altering the audio graph or weakening the test.
+
+All glass chips share one instanced mesh with a 48-fragment limit. Battery saver emits at most five chips per damage application. Debris expires quickly, pauses with simulation time and clears on restart/home. Instance-owned damage geometry is disposed on cleanup; undamaged geometry and shared materials stay cached. World changes dispose their scenery textures, lights, shadow maps and reflection target.
+
+The [six-world rendering report](performance-1.5.0.json) and [gallery](worlds-1.5.0.png) use the same four-vehicle tower, 960×640 viewport, pixel ratio 1, and one High/Battery-saver frame per world. These are main-view `renderer.info` submission/triangle counts; they do not measure shadow-pass work, shader cost, CPU frame time, FPS or battery use. This scenario differs from the older mobile home-preview measurements below, so the counts are not a direct before/after benchmark. Reproduce with the dev server on port 5173 and `node scripts/capture-worlds.mjs`; use `node scripts/capture-realism.mjs` for model/damage captures. Run only one software WebGL capture at a time.
+
+| World | Main-view draw calls | Main-view triangles |
+|---|---:|---:|
+| Forest | 53 | 175,070 |
+| Night City | 52 | 93,896 |
+| Outer Space | 57 | 93,388 |
+| Snow Mountains | 52 | 149,692 |
+| Desert | 62 | 116,750 |
+| Beach | 55 | 109,590 |
+
+The main-view counts match between the two quality settings in this scenario. High still adds shadow rendering and more city-light shader work; those costs are outside these counts. The capture report identifies the working source based on `8a45016` before committing the 1.5.0 update. Tall damaged towers add geometry and physics work beyond this four-vehicle snapshot.
 
 ## Historical before and after — 1.0.1
 
@@ -59,10 +84,10 @@ Crash audio uses three original buffers prepared during loading in 1.2.0 and reu
 
 ## Pixel 8 checks before the next release
 
-1. Sign the 1.4.0 AAB with the registered upload key, upload version code 7 to the same app's Internal testing track, and update through Google Play. Keep the existing install so save preservation can be checked.
+1. Sign the 1.5.0 AAB with the registered upload key, upload version code 8 to the same app's Internal testing track, and update through Google Play. Keep the existing install so save preservation can be checked.
 2. Test Auto for at least ten minutes in Forest and Night City. Look for delayed taps, uneven camera motion, warmth, and audio interruptions. Compare Battery saver if the phone gets warm.
 3. Open menus, pause, leave the app, and return. The run should stay paused and music should remain stopped until **Keep climbing**. Repeat after locking the phone.
-4. Check a centered drop, a corner miss, a tall tower, and replay. Repeat with the new rickshaw, ambulance, police car, fire engine, dump truck, and mixer, especially transitions from smaller cars to heavy trucks in Mixed mode. Replay must clear the old tower and reset score and run coins.
+4. Check a centered drop, a corner miss, a tall tower, and replay. Repeat with the rickshaw, ambulance, police car, fire engine, dump truck, and mixer, especially transitions from smaller cars to heavy trucks in Mixed mode. Check cracked/broken glazing, roof/door dents, repeated impacts and brief glass debris without delayed input or large frame spikes. Pause must freeze debris. Replay must clear the old tower and damage and reset score and run coins.
 5. On a fresh launch, tap Play without opening another menu. Check immediate music and sound on the very first collision. Drop several different vehicles and compare soft and hard crashes with music on/off. Turn **Sound effects** off and verify impacts stay silent after reopening.
 6. Try a free choice and a paid choice in each selector. Cancel must cancel; Done must save and charge only once. Test insufficient coins.
 7. Cancel Reset game and confirm nothing changes. Then, only on a test save, confirm reset and verify zero coins, free choices, default settings, and cleared records after reopening.
@@ -74,6 +99,6 @@ The original game and this game have separate Play testing requirements. Startin
 
 ## Expanded fleet — 1.4.0
 
-The [current model report](vehicle-metrics-1.4.0.json) measures all 12 models. New vehicles remain material-batched and share cached geometry/materials across drops. The rickshaw uses three visible wheels and three physical wheel contacts. The heavy fire, dump, and mixer trucks use three axles. The mixer uses tapered drum collision hulls; its spiral stripe and the fire ladder are static details so they add no per-frame model animation work. Emergency light lenses use emissive materials without adding dynamic point lights.
+The [1.4.0 model report](vehicle-metrics-1.4.0.json) measures all 12 models. New vehicles remain material-batched and share cached geometry/materials across drops. The rickshaw uses three visible wheels and three physical wheel contacts. The heavy fire, dump, and mixer trucks use three axles. The mixer uses tapered drum collision hulls; its spiral stripe and the fire ladder are static details so they add no per-frame model animation work. Emergency light lenses use emissive materials without adding dynamic point lights.
 
 The [new fleet gallery](fleet-additions-1.4.0.png) and [complete fleet gallery](fleet-1.4.0.png) are rendered from the actual game models. These are geometry/rendering checks in software Chromium, not new Pixel 8 frame-time or thermal measurements. The existing automatic graphics and shadow/light budgets remain in place. Check startup time, tall mixed towers, and warm-device behavior on the phone before rollout.

@@ -11,14 +11,35 @@ function cached(key:string,build:()=>THREE.BufferGeometry){if(!geometries.has(ke
 const materials=new Map<string,THREE.MeshPhysicalMaterial>();
 function material(color:number,metalness=.0,roughness=.55,clearcoat=0){
   const key=`${color}/${metalness}/${roughness}/${clearcoat}`;
-  if(!materials.has(key))materials.set(key,new THREE.MeshPhysicalMaterial({color,metalness,roughness,clearcoat,clearcoatRoughness:.16}));
+  if(!materials.has(key))materials.set(key,new THREE.MeshPhysicalMaterial({color,metalness,roughness,clearcoat,clearcoatRoughness:.22,envMapIntensity:.85}));
   return materials.get(key)!;
 }
-const rubber=material(0x18191a,0,.92),alloy=material(0xb8bec4,.92,.24),dark=material(0x1b2024,.3,.46),
-  glass=material(0x12232d,.05,.14,.65),lamp=material(0xe5eff4,.45,.16,.5),red=material(0x970d19,.25,.22,.6),
+const rubber=material(0x1c1d1b,0,.91),alloy=material(0xaeb5b9,.88,.29),dark=material(0x171c1e,.16,.53),
+  glass=material(0x27343b,.12,.085,.95),lamp=material(0xdbe4e8,.12,.20,.7),red=material(0x760b15,.08,.24,.65),
   brake=material(0x4f5459,.82,.54),seam=material(0x15191b,.1,.6);
-lamp.emissive.setHex(0xc1d4e4);lamp.emissiveIntensity=.22;
-red.emissive.setHex(0x5a0007);red.emissiveIntensity=.15;
+glass.userData.vehicleSurface='glass';glass.envMapIntensity=1.18;
+// Tinted laminated glazing keeps reflections while revealing subdued cabin silhouettes.
+glass.transparent=true;glass.opacity=.93;glass.depthWrite=true;
+lamp.emissive.setHex(0xc1d4e4);lamp.emissiveIntensity=.13;
+red.emissive.setHex(0x5a0007);red.emissiveIntensity=.10;
+let finishGrain:THREE.CanvasTexture|undefined,lensGrain:THREE.CanvasTexture|undefined;
+function paintFinish(mat:THREE.MeshPhysicalMaterial){
+  mat.userData.vehicleSurface='paint';mat.vertexColors=true;
+  if(!finishGrain){
+    const canvas=document.createElement('canvas');canvas.width=canvas.height=128;const c=canvas.getContext('2d')!,pixels=c.createImageData(128,128);let seed=7391;
+    for(let i=0;i<pixels.data.length;i+=4){seed=(Math.imul(seed,1664525)+1013904223)|0;const n=205+(seed>>>24)%40;pixels.data[i]=pixels.data[i+1]=pixels.data[i+2]=n;pixels.data[i+3]=255;}
+    c.putImageData(pixels,0,0);finishGrain=new THREE.CanvasTexture(canvas);finishGrain.wrapS=finishGrain.wrapT=THREE.RepeatWrapping;finishGrain.repeat.set(5,5);finishGrain.anisotropy=4;
+  }
+  mat.roughnessMap=finishGrain;mat.bumpMap=finishGrain;mat.bumpScale=.00065;return mat;
+}
+function headlightFinish(){
+  if(lensGrain)return;
+  const canvas=document.createElement('canvas');canvas.width=128;canvas.height=64;const c=canvas.getContext('2d')!;
+  c.fillStyle='#a8a8a8';c.fillRect(0,0,128,64);
+  for(let x=0;x<128;x+=5){c.fillStyle=x%10?'#e2e2e2':'#7b7b7b';c.fillRect(x,0,1,64);}
+  for(let y=6;y<64;y+=11){c.fillStyle='#bcbcbc';c.fillRect(0,y,128,1);}
+  lensGrain=new THREE.CanvasTexture(canvas);lensGrain.wrapS=lensGrain.wrapT=THREE.RepeatWrapping;lensGrain.repeat.set(2,2);lamp.bumpMap=lensGrain;lamp.bumpScale=.0012;
+}
 function mesh(g:THREE.Group,geo:THREE.BufferGeometry,mat:THREE.Material,x=0,y=0,z=0){
   const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;g.add(m);return m;
 }
@@ -119,6 +140,7 @@ function body(g:THREE.Group,id:VehicleId,paint:THREE.Material){
 }
 type Cabin={rear:number;rearRoof:number;frontRoof:number;front:number;base:number;roof:number;width:number};
 function cabin(g:THREE.Group,c:Cabin,paint:THREE.Material,key:string){
+  g.userData.cabin={...c};
   const {rear,front,rearRoof,frontRoof,base,roof,width}=c;
   const heightAt=(x:number)=>interpolate([[rear,base+.025],[rearRoof,roof-.025],[(rearRoof+frontRoof)/2,roof],[frontRoof,roof-.035],[front,base+.025]],x);
   mesh(g,cached(`glass/${key}`,()=>{
@@ -140,10 +162,29 @@ function cabin(g:THREE.Group,c:Cabin,paint:THREE.Material,key:string){
     rod(g,[pillar,base,side*width*.478],[pillar,heightAt(pillar)-.045,side*width*.399],.029,dark);
     line(g,[[rear,base,side*width*.48],[(rear+front)/2,base-.015,side*width*.485],[front,base,side*width*.48]],alloy,.012);
   }
+  // Seats and a dashboard read as dark silhouettes through the tinted glazing.
+  const seatX=THREE.MathUtils.lerp(rearRoof,frontRoof,.42),seatY=base+.06,seatHeight=Math.min(.42,(roof-base)*.67);
+  for(const side of [-1,1]){
+    box(g,seatX,seatY,side*width*.235,.35,.12,width*.27,dark,.025);
+    const back=box(g,seatX-.15,seatY+seatHeight*.4,side*width*.235,.095,seatHeight*.78,width*.26,dark,.025);back.rotation.z=-.08;
+    box(g,seatX-.15,seatY+seatHeight*.90,side*width*.235,.08,seatHeight*.25,width*.13,dark,.02);
+  }
+  box(g,front-.23,base+.025,0,.22,.13,width*.78,dark,.025);
+  const dx=front-frontRoof,dy=roof-.035-(base+.025),slope=Math.sqrt(dx*dx+dy*dy);
+  // Rubber glazing seals, washer nozzles and paired wipers fit the front slope.
+  for(const side of [-1,1]){
+    const lowerX=front-dx*.14,lowerY=heightAt(lowerX)+.018,z=side*width*.22;
+    line(g,[[lowerX,lowerY,z-side*.19],[lowerX-dx*.10,lowerY+dy*.10,z+side*.13]],dark,.012);
+    rod(g,[lowerX-dx*.02,lowerY+dy*.015,z],[lowerX-dx*.08,lowerY+dy*.08,z+side*.15],.009,dark);
+    box(g,front+.026,base-.014,side*width*.23,.035,.016,.028,dark,.004);
+  }
+  const sealPoints:number[][]=[];
+  for(let j=0;j<=12;j++){const t=j/12,z=THREE.MathUtils.lerp(-width*.435,width*.435,t),xx=front-dx*.035;sealPoints.push([xx,heightAt(xx)-Math.abs(z/width)*.065+.013,z]);}
+  line(g,sealPoints,dark,Math.min(.016,slope*.018));
 }
-const fleetWhite=material(0xe8ece8,.35,.32,.55),fleetBlue=material(0x075b95,.35,.24,.5),
- reflective=material(0xe7d968,.35,.32),orange=material(0xc16c27,.4,.36,.5);
-fleetBlue.emissive.setHex(0x064c9c);fleetBlue.emissiveIntensity=.45;
+const fleetWhite=material(0xe1e5e1,.12,.42,.45),fleetBlue=material(0x075b95,.18,.30,.45),
+ reflective=material(0xd6cc78,.15,.41),orange=material(0xb96729,.26,.42,.45),roofBlack=material(0x161a1b,.18,.38,.65);
+fleetBlue.emissive.setHex(0x064c9c);fleetBlue.emissiveIntensity=.22;
 const labelMaterials=new Map<string,THREE.Material>();
 function fleetLabel(g:THREE.Group,text:string,x:number,y:number,z:number,w:number,h:number,side:number){
  if(!labelMaterials.has(text)){
@@ -188,7 +229,7 @@ function fleetVehicle(g:THREE.Group,id:VehicleId,paint:THREE.Material){
  const {width:W}=SPECS[id];
  if(id==='police'){
   for(const x of [-1.395,1.395])for(const side of [-1,1])wheel(g,x,side*(W/2-.115),.38);
-  body(g,'car',paint);cabin(g,{rear:-1.57,rearRoof:-.87,frontRoof:.48,front:1.30,base:.96,roof:1.535,width:W},dark,id);
+  body(g,'car',paint);cabin(g,{rear:-1.57,rearRoof:-.87,frontRoof:.48,front:1.30,base:.96,roof:1.535,width:W},roofBlack,id);
   mesh(g,cached('police-hood',()=>{
    const sections:Section[]=[];
    for(let j=0;j<=12;j++){
@@ -207,6 +248,7 @@ function fleetVehicle(g:THREE.Group,id:VehicleId,paint:THREE.Material){
  }
  if(id==='rickshaw'){
   const green=material(0x1d654c,.45,.38,.4),canopy=material(0x202624,0,.89);
+  canopy.userData.vehicleSurface='panel';
   for(const side of [-1,1])wheel(g,-.95,side*.64,.34);wheel(g,1.13,0,.32);
   box(g,-.1,.51,0,2.69,.22,1.19,dark,.06);box(g,-.93,.92,0,1.08,.72,1.43,green,.12);
   box(g,-.70,1.06,0,.51,.16,1.11,canopy,.07);box(g,-1.02,1.31,0,.12,.47,1.11,canopy,.05);
@@ -289,10 +331,32 @@ function fleetVehicle(g:THREE.Group,id:VehicleId,paint:THREE.Material){
   for(let y=.84;y<2.12;y+=.23)rod(g,[-2.64,y,.47],[-2.64,y,.68],.023,alloy);
  }
 }
+type DamageZone={center:number[];halfSize:number[]};
+function damageZones(id:VehicleId,c?:Cabin){
+  const s=SPECS[id];
+  const windshield=c?(()=>{
+    const dx=c.front-c.frontRoof,dy=c.roof-c.base-.06,length=Math.hypot(dx,dy*1.5),up=[-dx/length,dy*1.5/length,0],normal=[up[1],-up[0],0];
+    const x=(c.frontRoof+c.front)/2,y=(c.roof-.035+c.base+.025)/2;
+    return{center:[x+normal[0]*.013,y+normal[1]*.013,0],right:[0,0,-1],up,width:c.width*.73,height:Math.hypot(dx,dy)*.74,cabin:{...c}};
+  })():{center:[s.length/2+.046,1.87,0],right:[0,0,-1],up:[0,1,0],width:s.width*.72,height:.75};
+  let roof:DamageZone=c?{center:[(c.rearRoof+c.frontRoof)/2,c.roof-.015,0],halfSize:[(c.frontRoof-c.rearRoof)/2+.10,.24,c.width*.43]}:
+    {center:[0,2.49,0],halfSize:[s.length*.46,.25,s.width*.47]};
+  if(id==='tractor')roof={center:[-.96,2.23,0],halfSize:[.82,.24,.86]};
+  if(id==='ambulance')roof={center:[-.68,2.57,0],halfSize:[1.90,.28,s.width*.49]};
+  if(id==='fireengine')roof={center:[-.81,2.49,0],halfSize:[1.90,.30,s.width*.49]};
+  if(id==='dumptruck')roof={center:[-.87,2.40,0],halfSize:[1.88,.35,s.width*.49]};
+  if(id==='mixer')roof={center:[-.84,2.55,0],halfSize:[1.48,.58,.94]};
+  if(id==='rickshaw')roof={center:[-.18,2.08,0],halfSize:[1.34,.20,.73]};
+  const doors=[-1,1].map(side=>({center:c?[(c.rear+c.front)/2,c.base-.24,side*c.width*.48]:[1.63,1.20,side*s.width*.50],halfSize:c?[(c.front-c.rear)*.39,.27,.13]:[.33,.64,.12],side}));
+  if(id==='rickshaw')for(const panel of doors){panel.center=[-.95,1.02,panel.side*.72];panel.halfSize=[.54,.27,.10];}
+  return{windshield,roof,doors};
+}
 const models=new Map<string,THREE.Group>();
 export function createVehicle(id:VehicleId,color?:number){
   const key=id+String(color);if(models.has(key))return models.get(key)!.clone();
-  const s=SPECS[id],g=new THREE.Group(),paint=material(color??s.color,.62,.27,.82),L=s.length,W=s.width;
+  const s=SPECS[id],g=new THREE.Group(),paint=paintFinish(material(color??s.color,.28,.36,.72)),L=s.length,W=s.width;
+  for(const panel of [fleetWhite,orange,roofBlack])paintFinish(panel);
+  headlightFinish();
   if(['ambulance','police','rickshaw','fireengine','dumptruck','mixer'].includes(id)){
     fleetVehicle(g,id,paint);
   }else if(id==='tractor'){
@@ -381,7 +445,20 @@ export function createVehicle(id:VehicleId,color?:number){
       if(child.userData.temporaryGeometry)child.geometry.dispose();
     }
   });
-  const optimized=new THREE.Group();optimized.name=id;optimized.userData={id,spec:s};
-  for(const [mat,parts] of batches){const merged=mergeGeometries(parts);parts.forEach(geo=>geo.dispose());if(merged){const part=new THREE.Mesh(merged,mat);part.castShadow=true;part.receiveShadow=true;part.matrixAutoUpdate=false;optimized.add(part);}}
+  const optimized=new THREE.Group();optimized.name=id;optimized.userData={id,spec:s,damageZones:damageZones(id,g.userData.cabin)};
+  for(const [mat,parts] of batches){
+    const merged=mergeGeometries(parts);parts.forEach(geo=>geo.dispose());
+    if(merged){
+      if(mat.userData.vehicleSurface==='paint'){
+        const position=merged.getAttribute('position'),colors=new Float32Array(position.count*3);
+        for(let i=0;i<position.count;i++){
+          const dust=1-THREE.MathUtils.smoothstep(position.getY(i),.40,.91);
+          colors[i*3]=1-dust*.13;colors[i*3+1]=1-dust*.16;colors[i*3+2]=1-dust*.20;
+        }
+        merged.setAttribute('color',new THREE.BufferAttribute(colors,3));
+      }
+      const part=new THREE.Mesh(merged,mat);part.userData.surface=mat.userData.vehicleSurface||'trim';part.castShadow=true;part.receiveShadow=true;part.matrixAutoUpdate=false;optimized.add(part);
+    }
+  }
   models.set(key,optimized);return optimized.clone();
 }
