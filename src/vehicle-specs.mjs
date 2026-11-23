@@ -16,7 +16,6 @@ export const SPECS={
 // Hidden recurring run reward: appears at each tenth successful stack and is
 // deliberately excluded from the shop catalog and unlock state.
 export const BONUS_SPECS={
- gold:{length:4.8,width:2.04,height:1.68,color:0xffb20c,mass:8.5},
+ gold:{length:4.75,width:2.34,height:1.52,color:0xffb20c,mass:8.5},
 };
 export const VEHICLE_SPECS={...SPECS,...BONUS_SPECS};
-

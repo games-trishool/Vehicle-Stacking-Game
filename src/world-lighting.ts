@@ -14,8 +14,15 @@ export function worldEnvironment(renderer:THREE.WebGLRenderer,id:WorldId){
  const canvas=document.createElement('canvas');canvas.width=1024;canvas.height=512;const c=canvas.getContext('2d')!,p=palettes[id],gradient=c.createLinearGradient(0,0,0,512);
  for(const [i,at] of [0,.30,.51,.63,1].entries())gradient.addColorStop(at,p[i]);c.fillStyle=gradient;c.fillRect(0,0,1024,512);
  if(id!=='space'){
-  const sun=c.createRadialGradient(400,112,2,400,112,82);sun.addColorStop(0,id==='city'?'rgba(168,193,225,.35)':'rgba(255,248,220,.93)');sun.addColorStop(.13,'rgba(255,246,224,.34)');sun.addColorStop(1,'rgba(255,255,255,0)');c.fillStyle=sun;c.fillRect(0,0,1024,260);
+  const sun=c.createRadialGradient(400,112,2,400,112,82);sun.addColorStop(0,id==='city'?'rgba(168,193,225,.38)':'rgba(255,248,220,.95)');sun.addColorStop(.13,'rgba(255,246,224,.34)');sun.addColorStop(1,'rgba(255,255,255,0)');c.fillStyle=sun;c.fillRect(0,0,1024,260);
  }
+ // Broad, soft reflection panels add the clean moving highlights of a vehicle
+ // studio to the PBR paint, glass and alloy across every environment.
+ c.save();c.globalCompositeOperation='screen';
+ for(const [x,y,w,h,color] of [[130,95,95,150,'rgba(255,244,221,.46)'],[660,75,130,180,'rgba(218,234,255,.50)'],[920,120,70,130,'rgba(255,255,255,.30)']] as [number,number,number,number,string][]){
+  const glow=c.createRadialGradient(x+w/2,y+h/2,2,x+w/2,y+h/2,Math.max(w,h)*.72);glow.addColorStop(0,color);glow.addColorStop(1,'rgba(255,255,255,0)');c.fillStyle=glow;c.fillRect(x-w,y-h,w*3,h*3);
+ }
+ c.restore();
  if(id==='forest'){
   c.fillStyle='#354c3c';for(let j=0;j<72;j++){const x=j*14.8,h=16+(Math.sin(j*27.7)*.5+.5)*42;c.beginPath();c.moveTo(x,291);c.lineTo(x+7,263-h);c.lineTo(x+16,291);c.fill();}
  }

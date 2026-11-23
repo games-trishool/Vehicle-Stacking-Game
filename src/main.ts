@@ -36,7 +36,7 @@ app.innerHTML=`
   <header class="header">
     <button class="brand" data-action="home" aria-label="Stack Vechiles home"><span class="brand-mark"><img src="/icons/icon-192.png" alt="" /></span><span class="brand-name">Stack <span>Vechiles</span></span></button>
     <nav class="navigation" aria-label="Main navigation"><button class="nav-link active" data-action="home">The game</button><button class="nav-link" data-action="worlds">Explore worlds</button><button class="nav-link" data-action="garage">Garage</button><button class="nav-link" data-action="leaderboard">Leaderboard</button></nav>
-    <div class="header-actions"><button class="coin-balance" data-action="garage" aria-label="Coins and garage">${icon('coin')}<span id="coin-balance">${state.coins}</span></button><span class="header-divider"></span><button class="icon-button" data-action="settings" aria-label="Settings">${icon('settings')}</button></div>
+    <div class="header-actions"><div class="currency-balances"><span class="ruby-balance" aria-label="${state.rubies} rare rubies">${icon('ruby')}<span id="ruby-balance">${state.rubies}</span></span><button class="coin-balance" data-action="garage" aria-label="${state.coins} coins, open garage">${icon('coin')}<span id="coin-balance">${state.coins}</span></button></div><span class="header-divider"></span><button class="icon-button" data-action="settings" aria-label="Settings">${icon('settings')}</button></div>
   </header>
   <main class="home-main">
     <div class="hero" id="hero">
@@ -58,7 +58,7 @@ app.innerHTML=`
         <div class="scene-caption home-only"><div><span class="scene-kicker" id="scene-kicker">01 / THE GREAT OUTDOORS</span><h2 id="scene-world-title">Into the forest.</h2><p id="scene-world-copy">Find your balance. Reach new heights.</p></div><button class="scene-explore" data-action="worlds" aria-label="Explore environments">${icon('arrow')}</button></div>
         <div class="scene-foot home-only"><span><i></i> SIX WORLDS. LIMITLESS HEIGHTS.</span><span>DRAG YOUR AMBITION UPWARD ${icon('layers')}</span></div>
         <div class="game-hud" id="game-hud" hidden>
-          <div class="hud-top"><div class="hud-controls"><button class="hud-button" data-action="pause" aria-label="Pause game">${icon('pause')}</button><div class="stability"><div><span>TOWER BALANCE</span><span id="stability-value">100%</span></div><div class="stability-track"><i id="stability-fill"></i></div></div></div><div class="hud-score"><small>SCORE</small><strong id="score">0</strong></div><div class="hud-coins">${icon('coin')}<span id="run-coins">0</span></div></div>
+          <div class="hud-top"><div class="hud-controls"><button class="hud-button" data-action="pause" aria-label="Pause game">${icon('pause')}</button><div class="stability"><div><span>TOWER BALANCE</span><span id="stability-value">100%</span></div><div class="stability-track"><i id="stability-fill"></i></div></div></div><div class="hud-score"><small>SCORE</small><strong id="score">0</strong></div><div class="hud-currencies"><div class="hud-coins">${icon('coin')}<span id="run-coins">0</span></div><div class="hud-rubies">${icon('ruby')}<span id="game-rubies">${state.rubies}</span></div></div></div>
           <div class="hud-height"><span id="height">0.0</span><small>METERS UP</small></div>
           <div class="landing-feedback" id="landing-feedback" aria-live="polite"></div>
           <div class="drop-instruction" id="drop-instruction"><span class="tap-ring"></span><strong>Tap to drop</strong></div>
@@ -97,7 +97,7 @@ function showHomeAd(){
 }
 function renderState(){
  const v=VEHICLES.find(v=>v.id===state.selectedVehicle)!,w=WORLDS.find(w=>w.id===state.selectedWorld)!;
- $('coin-balance').textContent=String(state.coins);$('selected-vehicle-name').textContent=v.name;$('selected-world-name').textContent=w.name;
+ $('coin-balance').textContent=String(state.coins);$('ruby-balance').textContent=String(state.rubies);$('game-rubies').textContent=String(state.rubies);$('selected-vehicle-name').textContent=v.name;$('selected-world-name').textContent=w.name;
  if(thumbs[v.id])$('selection-vehicle-image').innerHTML=`<img src="${thumbs[v.id]}" alt="" />`;
  $('selection-world-image').innerHTML=worldArt(w.id);
  $('best-score').innerHTML=`${state.best.toLocaleString()}<span> pts</span>`;$('achievement-count').innerHTML=`${state.achievements.length} <span>/ ${ACHIEVEMENTS.length}</span>`;
@@ -254,17 +254,17 @@ function bootProgress(value:number,message:string){
 // Yield once so the loading screen is visible before initializing WebGL.
 requestAnimationFrame(()=>setTimeout(async()=>{
  try{
-   game=new StackingGame($('game-canvas'));game.configure(state.settings);game.changeWorld(state.selectedWorld as WorldId);game.setVehicles(state.selectedVehicle,state.unlocked);game.onBonusSpawn=stackNumber=>toast(`GOLDEN APEX · BONUS VEHICLE ${stackNumber}`);
+   game=new StackingGame($('game-canvas'));game.configure(state.settings);game.changeWorld(state.selectedWorld as WorldId);game.setVehicles(state.selectedVehicle,state.unlocked);
    bootProgress(27,'Building the 3D world');
    const audioReady=game.audio.prepare();
    game.onLanding=(r:Landing)=>{
-     state.coins+=r.coins;state.totalStacks++;state.best=Math.max(state.best,r.score);state.bestHeight=Math.max(state.bestHeight,r.height);sessionBestCombo=Math.max(sessionBestCombo,r.combo);
+     state.coins+=r.coins;if(r.bonusRuby)state.rubies++;state.totalStacks++;state.best=Math.max(state.best,r.score);state.bestHeight=Math.max(state.bestHeight,r.height);sessionBestCombo=Math.max(sessionBestCombo,r.combo);
      if(r.stacks===1)earn('first');if(r.perfect)earn('perfect');if(r.stacks>=10)earn('ten');if(r.combo>=5)earn('combo');if(r.stacks>=20)earn('twenty');
      if(r.combo>=10)earn('tenCombo');if(r.stacks>=30)earn('thirty');if(r.score>=5000)earn('score5000');if(r.height>=25)earn('height25');if(state.totalStacks>=500)earn('lifetime500');
      if(r.stacks>=10&&!state.worldTen.includes(state.selectedWorld)){state.worldTen.push(state.selectedWorld);if(state.worldTen.length===6)earn('worldTour');}
      persist();
-     $('score').textContent=r.score.toLocaleString();$('run-coins').textContent=String(game!.coins);$('height').textContent=r.height.toFixed(1);
-     $('landing-feedback').innerHTML=r.perfect?`<strong>PERFECT.</strong><span>${r.combo>1?`${Math.min(r.combo,5)}× COMBO · `:''}+${r.coins} ${r.coins===1?'COIN':'COINS'}</span>`:`<strong>NICE LANDING.</strong><span>+40 POINTS · +${r.coins} ${r.coins===1?'COIN':'COINS'}</span>`;
+     $('score').textContent=r.score.toLocaleString();$('run-coins').textContent=String(game!.coins);$('ruby-balance').textContent=String(state.rubies);$('game-rubies').textContent=String(state.rubies);$('height').textContent=r.height.toFixed(1);
+     $('landing-feedback').innerHTML=r.bonusRuby?`<strong>GOLDEN BONUS!</strong><span>+${r.coins} COINS · +1 RARE RUBY</span>`:r.perfect?`<strong>PERFECT.</strong><span>${r.combo>1?`${Math.min(r.combo,5)}× COMBO · `:''}+${r.coins} ${r.coins===1?'COIN':'COINS'}</span>`:`<strong>NICE LANDING.</strong><span>+40 POINTS · +${r.coins} ${r.coins===1?'COIN':'COINS'}</span>`;
      $('landing-feedback').className=`landing-feedback show ${r.perfect?'perfect':''}`;clearTimeout(feedbackTimer);feedbackTimer=window.setTimeout(()=>$('landing-feedback').classList.remove('show'),1200);haptic(r.perfect);
    };
    game.onStability=value=>{$('stability-value').textContent=`${value}%`;$('stability-fill').style.width=`${value}%`;$('stability-fill').classList.toggle('is-danger',value<40);};
@@ -289,4 +289,3 @@ requestAnimationFrame(()=>setTimeout(async()=>{
    Object.defineProperty(window,'stackline',{value:{snapshot:()=>({ads:interstitials.snapshot,mode:game?.mode,score:game?.score,stacks:game?.stacks,height:game?.top,heldX:game?.held?.position.x,held:!!game?.held,falling:!!game?.falling,sceneVehicles:game?.vehicleCount,vehicleTypes:game?.vehicleTypes,damage:game?.damageSnapshot,glassChips:game?.glassChipCount,topX:game?.items.at(-1)?.body.position.x,stability:game?.stability,groundContact:game?.groundContact,drawCalls:game?.renderer.info.render.calls,triangles:game?.renderer.info.render.triangles,renderFrames:game?.renderFrames,renderPending:game?.renderPending,renderBudget:game?.renderBudget,pixelRatio:game?.renderer.getPixelRatio(),shadows:game?.renderer.shadowMap.enabled,shadowSize:game?.scenery.sun.shadow.mapSize.x,pointLights:game?.scenery.localLights.filter(light=>light.visible).length,adaptiveQualityReduced:game?.adaptiveQualityReduced,vehicle:state.selectedVehicle,world:state.selectedWorld,coins:state.coins,quality:state.settings.quality,musicEnabled:game?.audio.musicEnabled,musicPlaying:game?.audio.musicPlaying,musicLevel:game?.audio.musicLevel,crashPlays:game?.audio.crashPlays,musicReady:game?.audio.musicReady,musicStartDelayMs:game?.audio.musicStartDelayMs,audioState:game?.audio.context?.state,unlocked:[...state.unlocked],unlockedWorlds:[...state.unlockedWorlds],effectsLevel:game?.audio.effectsLevel,lastImpactSpeed:game?.lastImpactSpeed,fps:game?.averageFps,cameraY:game?.camera.position.y,storageKey:'stackline.progress.v1'})},writable:false});
  }catch(error){console.error(error);$('loading').innerHTML=`<div class="webgl-error">${icon('info')}<h3>Your graphics engine needs a hand.</h3><p>Enable WebGL or hardware acceleration in your browser, then reload to play.</p><button class="primary-button" id="reload">Try again</button></div>`;document.getElementById('reload')?.addEventListener('click',()=>location.reload());}
 },0));
-

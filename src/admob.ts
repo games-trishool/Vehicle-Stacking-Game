@@ -27,4 +27,3 @@ export async function hideHomeBanner(){
  if(!bannerVisible)return;
  try{await AdMob.hideBanner();}catch(error){console.warn('Banner ad could not be hidden.',error);}finally{bannerVisible=false;}
 }
-

@@ -1,0 +1,67 @@
+[
+  {
+    "file": "01_forest_green_hatchback.glb",
+    "triangles": 6436,
+    "size_kb": 133,
+    "bounding_box_meters": [
+      2.058,
+      1.447,
+      3.895
+    ],
+    "parts": 169,
+    "kind": "hatch",
+    "bonus": false
+  },
+  {
+    "file": "02_silver_sedan.glb",
+    "triangles": 6436,
+    "size_kb": 133,
+    "bounding_box_meters": [
+      2.208,
+      1.454,
+      4.505
+    ],
+    "parts": 169,
+    "kind": "sedan",
+    "bonus": false
+  },
+  {
+    "file": "03_sand_pickup.glb",
+    "triangles": 6408,
+    "size_kb": 134,
+    "bounding_box_meters": [
+      2.268,
+      1.513,
+      4.811
+    ],
+    "parts": 170,
+    "kind": "pickup",
+    "bonus": false
+  },
+  {
+    "file": "04_crimson_sport_sedan.glb",
+    "triangles": 7788,
+    "size_kb": 166,
+    "bounding_box_meters": [
+      2.258,
+      1.366,
+      4.535
+    ],
+    "parts": 215,
+    "kind": "coupe",
+    "bonus": false
+  },
+  {
+    "file": "05_rare_golden_bonus_hypercar.glb",
+    "triangles": 8104,
+    "size_kb": 174,
+    "bounding_box_meters": [
+      2.338,
+      1.383,
+      4.745
+    ],
+    "parts": 226,
+    "kind": "hyper",
+    "bonus": true
+  }
+]

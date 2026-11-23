@@ -34,12 +34,14 @@ test('native interstitials occur on completed games 3 and 6, and remain busy unt
  assert.deepEqual(busy,[true,false,true,false]);
  assert.deepEqual(calls.find(([name])=>name==='load')[1],{adId:'google-test-unit',isTesting:true,npa:true,immersiveMode:true});
 });
-test('completed-game spacing survives reopening and Reset game clears the ad counter',()=>{
+test('completed-game spacing resets when a new app session starts',()=>{
  const saved=storage(),port=device().port,first=new Interstitials(port,saved);
  assert.equal(first.recordCompletedGame(),false);assert.equal(first.recordCompletedGame(),false);
- const reopened=new Interstitials(port,saved);assert.equal(reopened.recordCompletedGame(),true);
+ const reopened=new Interstitials(port,saved);assert.equal(reopened.recordCompletedGame(),false);
+ assert.equal(reopened.recordCompletedGame(),false);assert.equal(reopened.recordCompletedGame(),true);
  reopened.recordCompletedGame();reopened.resetCounter();
- const reset=new Interstitials(port,saved);assert.equal(reset.recordCompletedGame(),false);assert.equal(reset.snapshot.completedSinceBreak,1);
+ assert.equal(reopened.recordCompletedGame(),false);assert.equal(reopened.snapshot.completedSinceBreak,1);
+ assert.equal(saved.getItem('stackline.ad-frequency.v1'),null,'the partial session count is never cached');
 });
 test('web mode never initializes an ad or changes the completed-game counter',async()=>{
  const saved=storage(),ads=new Interstitials(undefined,saved);ads.preload();

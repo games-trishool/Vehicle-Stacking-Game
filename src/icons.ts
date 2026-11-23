@@ -27,4 +27,4 @@ const paths: Record<string,string> = {
   info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/>',
   heart:'<path d="M20.5 4.5a5 5 0 0 0-7 0L12 6l-1.5-1.5a5 5 0 0 0-7 7L12 21l8.5-9.5a5 5 0 0 0 0-7"/>',
 };
-export function icon(name:string,cls=''){return `<svg class="icon ${cls}" width="24" height="24" viewBox="0 0 24 26" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name]||paths.car}</svg>`;}
+export function icon(name:string,cls=''){if(name==='coin'||name==='ruby')return `<img class="icon ${name}-icon ${cls}" src="/${name==='coin'?'gold-coin':'ruby'}.svg" alt="" aria-hidden="true" />`;return `<svg class="icon ${cls}" width="24" height="24" viewBox="0 0 24 26" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name]||paths.car}</svg>`;}

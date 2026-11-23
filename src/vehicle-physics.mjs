@@ -38,4 +38,3 @@ export function createVehicleBody(id,x,bottom){
  }
  return body;
 }
-

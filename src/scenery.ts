@@ -10,6 +10,8 @@ const COLORS:Record<WorldId,{sky:number;fog:number;ground:number;sun:number;ambi
  beach:{sky:0xb9dce0,fog:0xc9e3dc,ground:0xe1cda4,sun:0xfff1d2,ambient:0xe5f7f0},
 };
 function random(seed:number){return()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+const sharedSurfaceTextures=new Map<string,THREE.CanvasTexture>();
+export function disposeSurfaceTextureCache(){sharedSurfaceTextures.forEach(map=>map.dispose());sharedSurfaceTextures.clear();}
 function mat(color:number,roughness=.85){return new THREE.MeshStandardMaterial({color,roughness});}
 type InstanceTransform={position:THREE.Vector3;scale:THREE.Vector3;rotation?:THREE.Euler;color?:number};
 function add(g:THREE.Group,geo:THREE.BufferGeometry,m:THREE.Material|THREE.Material[],x=0,y=0,z=0){const mesh=new THREE.Mesh(geo,m);mesh.position.set(x,y,z);mesh.castShadow=true;mesh.receiveShadow=true;g.add(mesh);return mesh;}
@@ -34,6 +36,7 @@ function noise(x:number,y:number){
 }
 function texture(canvas:HTMLCanvasElement,repeat=1){const t=new THREE.CanvasTexture(canvas);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(repeat,repeat);t.anisotropy=4;return t;}
 function surfaceTexture(kind:WorldId|'bark'|'rock',size=512){
+ const key=`${kind}/${size}`,cached=sharedSurfaceTextures.get(key);if(cached)return cached;
  const canvas=document.createElement('canvas');canvas.width=canvas.height=size;const ctx=canvas.getContext('2d')!,image=ctx.createImageData(size,size),data=image.data;
  const palette:Record<string,number[][]>={forest:[[63,64,43],[111,119,74],[149,137,100]],snow:[[176,193,201],[218,229,233],[241,242,235]],desert:[[153,112,69],[201,164,111],[229,197,145]],beach:[[149,133,103],[204,190,153],[232,218,178]],city:[[35,38,42],[55,58,60],[79,78,73]],space:[[64,68,77],[99,102,108],[137,139,140]],bark:[[45,44,36],[83,76,57],[119,108,77]],rock:[[88,92,87],[139,145,139],[186,190,180]]};
  const c=palette[kind],rand=random(4821+kind.length*19);
@@ -48,7 +51,7 @@ function surfaceTexture(kind:WorldId|'bark'|'rock',size=512){
  if(kind==='forest'){
   for(let j=0;j<900;j++){const x=rand()*size,y=rand()*size;ctx.strokeStyle=rand()>.5?'#6d7845':'#96916b';ctx.lineWidth=.55+rand();ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+rand()*5-2.5,y-2-rand()*5);ctx.stroke();}
  }
- return texture(canvas);
+ const map=texture(canvas);map.userData.sharedSurface=true;sharedSurfaceTextures.set(key,map);return map;
 }
 function branchTexture(snow:boolean){
  const canvas=document.createElement('canvas');canvas.width=512;canvas.height=256;const c=canvas.getContext('2d')!,rand=random(6382);
@@ -174,6 +177,9 @@ export class Scenery {
    add(this.group,new THREE.CylinderGeometry(4.15,4.35,.55,80),rim,0,.16,0);
    const deck=new THREE.MeshPhysicalMaterial({map:grain,bumpMap:grain,bumpScale:.016,roughness:.46,clearcoat:.24,clearcoatRoughness:.42});
    const surface=add(this.group,new THREE.CylinderGeometry(4.17,4.17,.045,80),[rim,deck,rim],0,.455,0);surface.name='wooden-platform';
+   // Keep the vehicle landing zone bright and readable; vehicle-to-vehicle
+   // shadows still provide depth on the tower itself.
+   surface.receiveShadow=false;
    const brass=new THREE.MeshStandardMaterial({color:0xc49a57,metalness:.62,roughness:.34});
    const ring=add(this.group,new THREE.TorusGeometry(4.04,.022,6,80),brass,0,.485,0);ring.rotation.x=Math.PI/2;
    const studs=Array.from({length:12},(_,i)=>({position:new THREE.Vector3(Math.cos(i*Math.PI/6)*3.81,.486,Math.sin(i*Math.PI/6)*3.81),scale:new THREE.Vector3(1,1,1)}));
@@ -336,6 +342,8 @@ export class Scenery {
    for(let i=0;i<9;i++){const x=(rand()-.5)*50,z=4+rand()*8;driftwood.push({position:new THREE.Vector3(x,terrainHeight(x,z,this.id)+.10,z),scale:new THREE.Vector3(.10,1.1+rand()*1.8,.12),rotation:new THREE.Euler(Math.PI/2,rand()*6.28,rand()*.25)});}batch(this.group,new THREE.CylinderGeometry(.6,1,1,8),bark,driftwood);
  }
  setLightBudget(count:number){const order=[0,1,4,5,2,3,6,7];this.localLights.forEach((light,index)=>light.visible=order.indexOf(index)<count);}
+ deactivate(){this.group.visible=false;if(this.scene.background===this.backgroundTexture)this.scene.background=null;}
+ activate(){this.group.visible=true;if(this.backgroundTexture)this.scene.background=this.backgroundTexture;}
  update(dt:number,height:number){
    for(const c of this.clouds){c.position.x+=dt*.28;if(c.position.x>85)c.position.x=-85;}
    this.sun.target.position.y=height*.65;this.sun.position.y=29+height*.65;
@@ -346,6 +354,6 @@ export class Scenery {
    this.scene.remove(this.group);const geos=new Set<THREE.BufferGeometry>(),mats=new Set<THREE.Material>(),textures=new Set<THREE.Texture>();
    if(this.backgroundTexture){textures.add(this.backgroundTexture);if(this.scene.background===this.backgroundTexture)this.scene.background=null;}
    this.group.traverse(o=>{if(o instanceof THREE.Mesh||o instanceof THREE.Points){geos.add(o.geometry);(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>mats.add(m));}if(o instanceof THREE.InstancedMesh)o.dispose();if(o instanceof THREE.Light)o.dispose();});
-   geos.forEach(g=>g.dispose());mats.forEach(m=>{for(const value of Object.values(m))if(value instanceof THREE.Texture)textures.add(value);m.dispose();});textures.forEach(t=>t.dispose());
+   geos.forEach(g=>g.dispose());mats.forEach(m=>{for(const value of Object.values(m))if(value instanceof THREE.Texture)textures.add(value);m.dispose();});textures.forEach(t=>{if(!t.userData.sharedSurface)t.dispose();});
  }
 }

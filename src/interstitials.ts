@@ -1,5 +1,4 @@
 // Full-screen ads only belong at a completed-run boundary, never during play.
-const COUNTER_KEY='stackline.ad-frequency.v1';
 const MAX_CACHE_AGE=55*60*1000;
 export interface InterstitialPort {
  initialize():Promise<void>;
@@ -15,8 +14,9 @@ export class Interstitials {
  private readyAt?:number;
  busy=false;
  onBusyChange=(_busy:boolean)=>{};
- constructor(private port:InterstitialPort|undefined,private storage:CounterStorage,private now=Date.now){
-  try{const count=Number(storage.getItem(COUNTER_KEY));if(Number.isInteger(count)&&count>=0&&count<3)this.completed=count;}catch{/* Ads must not require device storage. */}
+ constructor(private port:InterstitialPort|undefined,_storage:CounterStorage,private now=Date.now){
+  // Frequency is scoped to this app session. Never restore a partial count
+  // after the player closes and launches the game again.
  }
  get snapshot(){return{enabled:!!this.port,completedSinceBreak:this.completed,ready:this.readyAt!==undefined&&this.now()-this.readyAt<MAX_CACHE_AGE,busy:this.busy};}
  preload(){
@@ -32,10 +32,9 @@ export class Interstitials {
  }
  recordCompletedGame(){
   if(!this.port)return false;
-  this.completed=(this.completed+1)%3;this.persist();return this.completed===0;
+  this.completed=(this.completed+1)%3;return this.completed===0;
  }
- resetCounter(){this.completed=0;this.persist();}
- private persist(){try{this.storage.setItem(COUNTER_KEY,String(this.completed));}catch{/* Keep counting in memory if storage is unavailable. */}}
+ resetCounter(){this.completed=0;}
  async showAtBreak(due:boolean,canPresent:()=>boolean){
   // Never await loading here: a late ad must not interrupt the next run.
   if(!due||!this.port||this.busy||!this.snapshot.ready||!canPresent())return false;

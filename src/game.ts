@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
-import { createVehicle, type VehicleId } from './vehicles';
+import { createVehicle, prepareGoldenBonusVehicle, type VehicleId } from './vehicles';
 import { VEHICLE_SPECS } from './vehicle-specs.mjs';
 import { Scenery, disposeSurfaceTextureCache, type WorldId } from './scenery';
 import { landingReward } from './store.mjs';
@@ -12,7 +12,7 @@ import {DamageGate,contactInModel} from './damage-rules.mjs';
 import {VehicleDamage,GlassFragments,prepareDamageGeometry} from './vehicle-damage';
 import {worldEnvironment} from './world-lighting';
 
-export interface Landing {perfect:boolean;combo:number;score:number;stacks:number;height:number;coins:number;stability:number;}
+export interface Landing {perfect:boolean;combo:number;score:number;stacks:number;height:number;coins:number;stability:number;bonusRuby?:boolean;}
 type Item={mesh:THREE.Group;body:CANNON.Body;id:VehicleId;height:number;landedY:number;damage:VehicleDamage};
 type Mode='home'|'playing'|'paused'|'ended';
 export class StackingGame {
@@ -25,13 +25,15 @@ export class StackingGame {
   private pendingDamage:{item:Item;point:THREE.Vector3;strength:number;fromAbove:boolean}[]=[];
   onLanding:(landing:Landing)=>void=()=>{};onEnd:(result:Landing)=>void=()=>{};onStability:(value:number)=>void=()=>{};
   private last=performance.now();private raf=0;private observer:ResizeObserver;private particles:{mesh:THREE.InstancedMesh;v:THREE.Vector3[];p:THREE.Vector3[];age:number}[]=[];
+  private confetti:{mesh:THREE.InstancedMesh;p:THREE.Vector3[];v:THREE.Vector3[];spin:THREE.Vector3[];rotation:THREE.Vector3[];scale:THREE.Vector3[];age:number;life:number}[]=[];
   private environmentTarget:THREE.WebGLRenderTarget;private environmentTargets=new Map<WorldId,THREE.WebGLRenderTarget>();private sceneries=new Map<WorldId,Scenery>();private targetLook=new THREE.Vector3();private cameraPosition=new THREE.Vector3();private particleDummy=new THREE.Object3D();
   private frames=0;private frameTime=0;private renders=0;private dirty=true;private overlayOpen=false;private appActive=true;private disposed=false;
   private performanceFrames=0;private performanceTime=0;private adaptiveLow=false;
   private graphicsPrepared=false;private effectsPreparing=0;private homeStacks=new Map<string,THREE.Group>();private activeHomeStack?:THREE.Group;
+  private readonly confettiGeometry=new THREE.BoxGeometry(1,1,.08);
+  private readonly confettiMaterial=new THREE.MeshStandardMaterial({color:0xffffff,metalness:.58,roughness:.27,envMapIntensity:1.6,emissive:0x613500,emissiveIntensity:.12,side:THREE.DoubleSide});
   private showroomLights:THREE.PointLight[]=[];
   private bonusAura?:THREE.Group;
-  onBonusSpawn:(_stackNumber:number)=>void=()=>{};
   private mobileQuery=matchMedia('(max-width: 760px), (pointer: coarse)');
   private visibilityChanged=()=>{if(document.hidden)this.stopFrames();else{this.last=performance.now();this.invalidate();}};
   constructor(public container:HTMLElement){
@@ -58,7 +60,15 @@ export class StackingGame {
   get vehicleTypes(){const ids:VehicleId[]=[];this.scene.traverse(object=>{if(object.userData.spec&&object.userData.id)ids.push(object.userData.id);});return ids;}
   get damageSnapshot(){return [...this.items,...(this.falling?[this.falling]:[])].map(item=>({bodyId:item.body.id,id:item.id,...item.damage.snapshot}));}
   get glassChipCount(){return this.glassFragments.count;}
-  prepareGraphics(){
+  private async prepareConfetti(){
+    const warmScene=new THREE.Scene(),mesh=new THREE.InstancedMesh(this.confettiGeometry,this.confettiMaterial,1);
+    warmScene.environment=this.scene.environment;warmScene.add(new THREE.AmbientLight(0xffffff,1));mesh.setColorAt(0,new THREE.Color(0xffcf45));warmScene.add(mesh);
+    try{await this.renderer.compileAsync(warmScene,this.camera);}catch{/* Confetti can still compile on first render if shader warmup is unavailable. */}
+    mesh.dispose();warmScene.clear();
+  }
+  async prepareGraphics(){
+    await prepareGoldenBonusVehicle();
+    await this.prepareConfetti();
     for(const id of Object.keys(VEHICLE_SPECS) as VehicleId[])prepareDamageGeometry(createVehicle(id));
     this.graphicsPrepared=true;return this.prepareEffects();
   }
@@ -129,7 +139,8 @@ export class StackingGame {
     if(this.guide){this.scene.remove(this.guide);this.guide.geometry.dispose();(this.guide.material as THREE.Material).dispose();}
     this.guide=undefined;
     for(const p of this.particles){this.scene.remove(p.mesh);p.mesh.dispose();p.mesh.geometry.dispose();(p.mesh.material as THREE.Material).dispose();}
-    this.particles=[];this.world=undefined;this.spawnTimer=0;this.slow=0;this.shake=0;this.groundContact=false;
+    for(const p of this.confetti){this.scene.remove(p.mesh);p.mesh.dispose();}
+    this.particles=[];this.confetti=[];this.world=undefined;this.spawnTimer=0;this.slow=0;this.shake=0;this.groundContact=false;
   }
   reset(){this.score=0;this.stacks=0;this.combo=0;this.coins=0;this.stability=100;this.showHome();}
   showHome(){
@@ -191,15 +202,12 @@ export class StackingGame {
     }
   }
   private spawn(){if(this.mode!=='playing')return;const stackNumber=this.stacks+1,bonus=stackNumber>=3&&stackNumber%3===0;this.heldId=bonus?'gold':this.pick();this.held=createVehicle(this.heldId);this.held.position.set(-3,this.top+3.1,0);this.scene.add(this.held);this.phase=-Math.PI/2;this.elapsed=0;this.settled=0;this.contact=false;
-    if(bonus){this.addBonusAura();this.onBonusSpawn(stackNumber);}
+    if(bonus){this.addBonusAura();this.burstConfetti(this.held.position);}
     this.guide=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3(0,-3,0)]),new THREE.LineDashedMaterial({color:0xf1e5ad,transparent:true,opacity:.55,dashSize:.12,gapSize:.13}));this.guide.computeLineDistances();this.scene.add(this.guide);
   }
   private addBonusAura(){
     if(!this.held)return;
-    const aura=new THREE.Group(),gold=new THREE.MeshBasicMaterial({color:0xffc34e,transparent:true,opacity:.78,depthWrite:false});
-    const ring=new THREE.Mesh(new THREE.TorusGeometry(2.48,.022,7,72),gold);ring.rotation.x=Math.PI/2;ring.scale.set(1,.46,1);ring.position.y=.86;aura.add(ring);
-    const spark=new THREE.MeshBasicMaterial({color:0xffedaa});
-    for(let i=0;i<8;i++){const a=i*Math.PI/4,gem=new THREE.Mesh(new THREE.OctahedronGeometry(.065,0),spark);gem.position.set(Math.cos(a)*2.40,.84+Math.sin(a*2)*.10,Math.sin(a)*1.04);aura.add(gem);}
+    const aura=new THREE.Group();
     const light=new THREE.PointLight(0xffb934,22,7,2);light.position.y=.9;aura.add(light);
     this.held.add(aura);this.bonusAura=aura;
   }
@@ -207,6 +215,19 @@ export class StackingGame {
     if(!this.bonusAura)return;this.bonusAura.parent?.remove(this.bonusAura);
     this.bonusAura.traverse(object=>{if(object instanceof THREE.Mesh){object.geometry.dispose();const materials=Array.isArray(object.material)?object.material:[object.material];materials.forEach(material=>material.dispose());}});
     this.bonusAura=undefined;
+  }
+  private burstConfetti(origin:THREE.Vector3){
+    const count=40,life=2.7,mesh=new THREE.InstancedMesh(this.confettiGeometry,this.confettiMaterial,count),p:THREE.Vector3[]=[],v:THREE.Vector3[]=[],spin:THREE.Vector3[]=[],rotation:THREE.Vector3[]=[],scale:THREE.Vector3[]=[],dummy=this.particleDummy;
+    const palette=[0xffcf45,0xffe88a,0xd98a12,0xffb91f,0xfff0bb];
+    for(let i=0;i<count;i++){
+      p.push(origin.clone().add(new THREE.Vector3((Math.random()-.5)*2.7,2+Math.random()*.6,(Math.random()-.5)*1.8)));
+      v.push(new THREE.Vector3((Math.random()-.5)*5,.5+Math.random()*1.9,(Math.random()-.5)*3));
+      spin.push(new THREE.Vector3((Math.random()-.5)*13,(Math.random()-.5)*13,(Math.random()-.5)*9));
+      rotation.push(new THREE.Vector3(Math.random()*Math.PI,Math.random()*Math.PI,Math.random()*Math.PI));
+      scale.push(new THREE.Vector3(.055+Math.random()*.075,.018+Math.random()*.028,1));
+      dummy.position.copy(p[i]);dummy.rotation.set(rotation[i].x,rotation[i].y,rotation[i].z);dummy.scale.copy(scale[i]);dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix);mesh.setColorAt(i,new THREE.Color(palette[i%palette.length]));
+    }
+    mesh.instanceMatrix.needsUpdate=true;if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;this.scene.add(mesh);this.confetti.push({mesh,p,v,spin,rotation,scale,age:0,life});
   }
   drop(){
     if(this.mode!=='playing'||!this.held||!this.world)return false;
@@ -225,7 +246,7 @@ export class StackingGame {
     if(perfect){item.body.angularVelocity.scale(.25,item.body.angularVelocity);if(!this.reduceMotion)this.slow=.52;}
     this.audio.landing(perfect,this.combo);if(!this.reduceMotion)this.shake=perfect?.07:.12;
     this.burst(new THREE.Vector3(item.body.position.x,item.landedY+.5,0),perfect,item.id==='gold');
-    this.onLanding({perfect,combo:this.combo,score:this.score,stacks:this.stacks,height:this.top,coins:reward.coins,stability:this.stability});this.spawnTimer=.62;
+    this.onLanding({perfect,combo:this.combo,score:this.score,stacks:this.stacks,height:this.top,coins:reward.coins,stability:this.stability,bonusRuby:item.id==='gold'});this.spawnTimer=.62;
   }
   private end(){if(this.mode!=='playing')return;this.mode='ended';this.audio.stopMusic();this.audio.fail();this.clearBonusAura();if(this.held){this.scene.remove(this.held);this.held=undefined;}if(this.guide)this.guide.visible=false;this.onEnd({perfect:false,combo:this.combo,score:this.score,stacks:this.stacks,height:this.top,coins:this.coins,stability:this.stability});}
   private burst(position:THREE.Vector3,perfect:boolean,bonus=false){
@@ -276,6 +297,7 @@ export class StackingGame {
     this.scenery.update(visualDt,playing?this.lookY:0);
     this.glassFragments.update(visualDt);
     const dummy=this.particleDummy;for(let j=this.particles.length-1;j>=0;j--){const p=this.particles[j];if(this.mode==='paused')continue;p.age+=visualDt;for(let i=0;i<p.p.length;i++){p.v[i].y-=visualDt*4;p.p[i].addScaledVector(p.v[i],visualDt);dummy.position.copy(p.p[i]);dummy.scale.setScalar(Math.max(.01,1-p.age/1.4));dummy.updateMatrix();p.mesh.setMatrixAt(i,dummy.matrix);}p.mesh.instanceMatrix.needsUpdate=true;(p.mesh.material as THREE.MeshBasicMaterial).opacity=Math.max(0,1-p.age/1.4);if(p.age>1.4){this.scene.remove(p.mesh);p.mesh.dispose();p.mesh.geometry.dispose();(p.mesh.material as THREE.Material).dispose();this.particles.splice(j,1);}}
+    for(let j=this.confetti.length-1;j>=0;j--){const burst=this.confetti[j];if(this.mode==='paused')continue;burst.age+=visualDt;const fade=Math.min(1,Math.max(.01,(burst.life-burst.age)/.65));for(let i=0;i<burst.p.length;i++){const pos=burst.p[i],velocity=burst.v[i],spin=burst.spin[i],rotation=burst.rotation[i];velocity.y-=visualDt*3.8;velocity.x*=1-visualDt*.22;pos.addScaledVector(velocity,visualDt);rotation.addScaledVector(spin,visualDt);dummy.position.copy(pos);dummy.rotation.set(rotation.x,rotation.y,rotation.z);dummy.scale.copy(burst.scale[i]).multiplyScalar(fade);dummy.updateMatrix();burst.mesh.setMatrixAt(i,dummy.matrix);}burst.mesh.instanceMatrix.needsUpdate=true;if(burst.age>=burst.life){this.scene.remove(burst.mesh);burst.mesh.dispose();this.confetti.splice(j,1);}}
   }
   private syncItem(item:Item){
     // Static bases and settled bodies keep the exact same render transform.
@@ -308,6 +330,5 @@ export class StackingGame {
     }
     if(!frozen)this.queueFrame();
   };
-  dispose(){this.disposed=true;this.stopFrames();document.removeEventListener('visibilitychange',this.visibilityChanged);this.observer.disconnect();this.clear();this.homeStacks.clear();this.showroomLights.forEach(light=>{this.scene.remove(light);light.dispose();});this.glassFragments.dispose();this.audio.dispose();this.sceneries.forEach(scenery=>scenery.dispose());this.sceneries.clear();this.environmentTargets.forEach(target=>target.dispose());this.environmentTargets.clear();disposeSurfaceTextureCache();this.renderer.dispose();}
+  dispose(){this.disposed=true;this.stopFrames();document.removeEventListener('visibilitychange',this.visibilityChanged);this.observer.disconnect();this.clear();this.confettiGeometry.dispose();this.confettiMaterial.dispose();this.homeStacks.clear();this.showroomLights.forEach(light=>{this.scene.remove(light);light.dispose();});this.glassFragments.dispose();this.audio.dispose();this.sceneries.forEach(scenery=>scenery.dispose());this.sceneries.clear();this.environmentTargets.forEach(target=>target.dispose());this.environmentTargets.clear();disposeSurfaceTextureCache();this.renderer.dispose();}
 }
-

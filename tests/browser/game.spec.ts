@@ -276,8 +276,8 @@ test('Done commits selections and purchases; closing cancels; reset needs confir
  page.once('dialog',async dialog=>{expect(dialog.type()).toBe('confirm');expect(dialog.message()).toContain('clears all coins');await dialog.dismiss();});
  await page.getByRole('button',{name:'Reset game',exact:true}).click();expect((await snapshot(page)).coins).toBe(700);await expect(page.getByRole('dialog')).toBeVisible();
  page.once('dialog',dialog=>dialog.accept());await page.getByRole('button',{name:'Reset game',exact:true}).click();
- expect(await snapshot(page)).toMatchObject({mode:'home',coins:0,score:0,stacks:0,vehicle:'mixed',world:'forest',quality:'auto',musicEnabled:true,musicPlaying:false,unlocked:['mixed','car','suv','truck'],unlockedWorlds:['forest','city','space']});
+ expect(await snapshot(page)).toMatchObject({mode:'home',coins:0,score:0,stacks:0,vehicle:'mixed',world:'forest',quality:'ultra',musicEnabled:true,musicPlaying:false,unlocked:['mixed','car','suv','truck'],unlockedWorlds:['forest','city','space']});
  const fresh=await page.evaluate(()=>JSON.parse(localStorage.getItem('stackline.progress.v1')!));
- expect(fresh).toMatchObject({coins:0,best:0,bestHeight:0,totalStacks:0,achievements:[],runs:[],settings:{music:true,sound:true,haptics:true,reduceMotion:false,quality:'auto'}});
+ expect(fresh).toMatchObject({coins:0,best:0,bestHeight:0,totalStacks:0,achievements:[],runs:[],settings:{music:true,sound:true,haptics:true,reduceMotion:false,quality:'ultra'}});
  await page.reload();await page.waitForFunction(()=>!!(window as any).stackline);expect(await snapshot(page)).toMatchObject({coins:0,vehicle:'mixed',world:'forest',unlockedWorlds:['forest','city','space']});
 });

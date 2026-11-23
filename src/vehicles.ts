@@ -1,10 +1,17 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import goldenBonusUrl from '../05_rare_golden_bonus_hypercar.glb?url';
 
 import {SPECS,VEHICLE_SPECS,BONUS_SPECS} from './vehicle-specs.mjs';
 export {SPECS};
 export type VehicleId=keyof typeof SPECS|keyof typeof BONUS_SPECS;
+const goldenDamageZones={
+  windshield:{center:[.87,1.04,0],right:[0,0,-1],up:[-.32,.95,0],width:1.44,height:.52},
+  roof:{center:[-.28,1.34,0],halfSize:[1.05,.08,.68]},
+  doors:[-1,1].map(side=>({center:[-.02,.79,side*1.02],halfSize:[.83,.31,.045],side})),
+};
 // All shapes and textures are original, generated once, then shared by every clone.
 const geometries=new Map<string,THREE.BufferGeometry>();
 function cached(key:string,build:()=>THREE.BufferGeometry){if(!geometries.has(key))geometries.set(key,build());return geometries.get(key)!;}
@@ -18,6 +25,17 @@ const rubber=material(0x1c1d1b,0,.91),alloy=material(0xaeb5b9,.88,.29),dark=mate
   glass=material(0x27343b,.12,.085,.95),lamp=material(0xdbe4e8,.12,.20,.7),red=material(0x760b15,.08,.24,.65),
   brake=material(0x4f5459,.82,.54),seam=material(0x15191b,.1,.6);
 const goldEdge=material(0xffc24b,.78,.20,.9);goldEdge.emissive.setHex(0x9c3e00);goldEdge.emissiveIntensity=.32;
+const carbonFiber=(()=>{
+  const canvas=document.createElement('canvas');canvas.width=canvas.height=128;const ctx=canvas.getContext('2d')!;
+  ctx.fillStyle='#111417';ctx.fillRect(0,0,128,128);
+  for(let y=-16;y<144;y+=8)for(let x=-16;x<144;x+=8){
+    ctx.fillStyle='#24292b';ctx.fillRect(x+(y%16?4:0),y,4,3);
+    ctx.fillStyle='#090b0d';ctx.fillRect(x+(y%16?4:0)+4,y+3,4,3);
+    ctx.fillStyle='#1a1e20';ctx.fillRect(x+(y%16?0:4),y+4,4,3);
+  }
+  const map=new THREE.CanvasTexture(canvas);map.colorSpace=THREE.SRGBColorSpace;map.wrapS=map.wrapT=THREE.RepeatWrapping;map.repeat.set(5,2);
+  return new THREE.MeshPhysicalMaterial({map,color:0xd1d0c8,metalness:.48,roughness:.38,clearcoat:.48,clearcoatRoughness:.3,envMapIntensity:.95});
+})();
 glass.userData.vehicleSurface='glass';glass.envMapIntensity=1.18;
 // Tinted laminated glazing keeps reflections while revealing subdued cabin silhouettes.
 glass.transparent=true;glass.opacity=.93;glass.depthWrite=true;
@@ -59,6 +77,11 @@ function rod(g:THREE.Group,a:number[],b:number[],radius:number,mat:THREE.Materia
   const start=new THREE.Vector3(...a as [number,number,number]),end=new THREE.Vector3(...b as [number,number,number]);
   const m=mesh(g,cached(`rod/${radius}/${start.distanceTo(end)}`,()=>new THREE.CylinderGeometry(radius,radius,start.distanceTo(end),8)),mat);
   m.position.copy(start).add(end).multiplyScalar(.5);m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),end.sub(start).normalize());
+}
+function surfacePanel(g:THREE.Group,points:number[][],mat:THREE.Material,side:number,z:number){
+  const shape=new THREE.Shape(),coords=side<0?points.map(([x,y])=>[-x,y]):points;
+  shape.moveTo(coords[0][0],coords[0][1]);for(let i=1;i<coords.length;i++)shape.lineTo(coords[i][0],coords[i][1]);shape.closePath();
+  const panel=mesh(g,new THREE.ShapeGeometry(shape,16),mat,0,0,side*z);if(side<0)panel.rotation.y=Math.PI;return panel;
 }
 type Section={x:number;ring:number[][]};
 function loft(sections:Section[]){
@@ -362,6 +385,42 @@ function damageZones(id:VehicleId,c?:Cabin){
   return{windshield,roof,doors};
 }
 const models=new Map<string,THREE.Group>();
+let goldenVehicleLoad:Promise<void>|undefined;
+export function prepareGoldenBonusVehicle(){
+  if(models.has('goldundefined'))return Promise.resolve();
+  if(!goldenVehicleLoad)goldenVehicleLoad=new GLTFLoader().loadAsync(goldenBonusUrl).then(gltf=>{
+    gltf.scene.updateMatrixWorld(true);
+    // The GLB faces -Z; rotate that nose toward the game's +X-facing convention.
+    const orient=new THREE.Matrix4().makeRotationY(-Math.PI/2),batches=new Map<string,{material:THREE.Material;signature:string;parts:THREE.BufferGeometry[]}>();
+    gltf.scene.traverse(object=>{
+      if(!(object instanceof THREE.Mesh))return;
+      const materials=Array.isArray(object.material)?object.material:[object.material];
+      for(let index=0;index<materials.length;index++){
+        const source=materials[index],groups=object.geometry.groups.length?object.geometry.groups:[{start:0,count:object.geometry.getIndex()?.count||object.geometry.getAttribute('position').count,materialIndex:0}];
+        const group=groups.find(part=>part.materialIndex===index);if(!group)continue;
+        let geometry=object.geometry.clone();if(object.geometry.groups.length){geometry.clearGroups();geometry.setDrawRange(group.start,group.count);}
+        if(!geometry.getAttribute('normal'))geometry.computeVertexNormals();
+        const transform=orient.clone().multiply(object.matrixWorld);geometry.applyMatrix4(transform);if(geometry.index)geometry=geometry.toNonIndexed();
+        const signature=Object.keys(geometry.attributes).sort().join(','),key=`${source.uuid}/${signature}`;
+        if(!batches.has(key))batches.set(key,{material:source,signature,parts:[]});batches.get(key)!.parts.push(geometry);
+      }
+    });
+    const model=new THREE.Group();model.name='gold';model.userData={id:'gold',spec:VEHICLE_SPECS.gold,damageZones:goldenDamageZones};
+    for(const {material:surface,parts} of batches.values()){
+      const name=surface.name||'';surface.userData.vehicleSurface=/windshield|window glass/i.test(name)?'glass':/metallic body|roof color/i.test(name)?'paint':'trim';
+      const geometry=mergeGeometries(parts);parts.forEach(part=>part.dispose());if(!geometry)continue;
+      if(surface.userData.vehicleSurface==='paint'){
+        surface.vertexColors=true;const positions=geometry.getAttribute('position'),colors=new Float32Array(positions.count*3);
+        for(let i=0;i<positions.count;i++){const dust=1-THREE.MathUtils.smoothstep(positions.getY(i),.35,.88);colors.set([1-dust*.13,1-dust*.16,1-dust*.20],i*3);}geometry.setAttribute('color',new THREE.BufferAttribute(colors,3));
+        if(surface instanceof THREE.MeshStandardMaterial){surface.metalness=Math.max(surface.metalness,.68);surface.roughness=Math.min(surface.roughness,.28);surface.envMapIntensity=1.35;surface.userData.vehicleSurface='paint';}
+      }
+      if(surface instanceof THREE.MeshStandardMaterial&&surface.userData.vehicleSurface==='glass'){surface.transparent=true;surface.opacity=.92;surface.depthWrite=true;surface.envMapIntensity=1.2;}
+      const mesh=new THREE.Mesh(geometry,surface);mesh.castShadow=true;mesh.receiveShadow=true;mesh.matrixAutoUpdate=false;mesh.userData.surface=surface.userData.vehicleSurface;model.add(mesh);
+    }
+    models.set('goldundefined',model);
+  }).catch(error=>{goldenVehicleLoad=undefined;console.error('Golden Apex model could not be loaded; using the procedural backup.',error);});
+  return goldenVehicleLoad;
+}
 export function createVehicle(id:VehicleId,color?:number){
   const key=id+String(color);if(models.has(key))return models.get(key)!.clone();
   const s=VEHICLE_SPECS[id],g=new THREE.Group(),paint=paintFinish(material(color??s.color,id==='gold'?.78:.28,id==='gold'?.22:.36,id==='gold'?.96:.72)),L=s.length,W=s.width;
@@ -430,24 +489,72 @@ export function createVehicle(id:VehicleId,color?:number){
         for(const side of [-1,1])line(g,[[1.0,.90,side*.48],[1.48,.86,side*.51],[1.97,.77,side*.55]],seam,.008);
       }
       if(id==='gold'){
-        // Carbon aero, illuminated gold sills and a sculpted endurance-racer wing.
-        box(g,-2.06,.79,0,1.27,.11,W*.98,dark,.035);
-        for(const axle of [-L*.31,L*.31])for(const side of [-1,1])box(g,axle+.13,.40,side*(W*.5+.012),.13,.29,.06,goldEdge,.025);
+        // Carbon aero, vented bodywork and the multi-plane endurance-racer wing.
+        box(g,-2.06,.79,0,1.30,.12,W*.98,carbonFiber,.035);
+        box(g,2.12,.43,0,.48,.09,W*.96,carbonFiber,.025);
+        box(g,2.35,.39,0,.11,.055,W*1.04,carbonFiber,.022);
+        for(let fin=0;fin<7;fin++)box(g,2.08+Math.abs(fin-3)*.035,.36,-.78+fin*.26,.35,.22,.035,carbonFiber,.012);
+        for(const axle of [-L*.31,L*.31])for(const side of [-1,1]){
+          box(g,axle+.13,.40,side*(W*.5+.012),.13,.29,.06,goldEdge,.025);
+          const arc:number[][]=[];for(let j=0;j<=18;j++){const a=j*Math.PI/18;arc.push([axle+Math.cos(a)*.425,.36+Math.sin(a)*.425,side*(W*.5+.018)]);}line(g,arc,goldEdge,.009);
+        }
         for(const side of [-1,1]){
-          box(g,-.05,.81,side*(W*.49),2.20,.16,.08,dark,.025);
+          box(g,-.05,.81,side*(W*.49),2.20,.16,.08,carbonFiber,.025);
           line(g,[[-1.16,.74,side*.88],[-.52,.72,side*1.04],[.42,.72,side*1.03],[1.19,.77,side*.89]],goldEdge,.018);
-          line(g,[[.45,1.04,side*.10],[1.02,.91,side*.26],[1.67,.79,side*.42]],goldEdge,.012);
+          line(g,[[.45,1.04,side*.10],[1.02,.91,side*.26],[1.67,.79,side*.42],[2.22,.65,side*.57]],goldEdge,.012);
+          // Deep side-air curtain with inset vanes and a crisp rolled lip.
+          const intake=[[-.60,.54],[.28,.53],[.77,.82],[.49,.98],[-.20,.94],[-.66,.76]];
+          surfacePanel(g,intake,carbonFiber,side,W*.5+.023);
+          line(g,[[-.60,.54,side*(W*.5+.031)],[.28,.53,side*(W*.5+.031)],[.77,.82,side*(W*.5+.031)],[.49,.98,side*(W*.5+.031)]],goldEdge,.010);
+          for(let vane=0;vane<3;vane++){const x=-.40+vane*.20;line(g,[[x,.60,side*(W*.5+.039)],[x+.24,.72,side*(W*.5+.039)],[x+.37,.84,side*(W*.5+.039)]],alloy,.009);}
+          // Side glass, handle, mirror foot and a stamped door shut line.
+          line(g,[[-.72,.96,side*.84],[-.15,1.02,side*.89],[.43,.99,side*.91],[.94,.87,side*.88]],dark,.012);
+          box(g,.45,.98,side*(W*.5+.019),.16,.025,.018,alloy,.006);
+          rod(g,[.95,1.02,side*.79],[1.06,1.13,side*.98],.024,carbonFiber);
+          mesh(g,cached('gold-mirror',()=>new RoundedBoxGeometry(.24,.11,.17,2,.04)),paint,1.08,1.14,side*1.005);
+          box(g,1.08,1.14,side*1.095,.16,.068,.008,glass,.014);
           box(g,-2.19,1.39,side*.82,.34,.30,.10,paint,.035);
           rod(g,[-1.88,1.08,side*.59],[-1.97,1.53,side*.59],.047,dark);
-          rod(g,[-1.88,1.08,side*.59],[-1.97,1.53,side*.59],.020,goldEdge);
-          box(g,-1.94,1.55,side*.015,.48,.095,.045,goldEdge,.025);
-          box(g,.06,1.34,side*.15,.64,.12,.38,dark,.05);
-          line(g,[[-2.20,.56,side*.71],[-1.65,.48,side*.82],[-.65,.46,side*.88],[.75,.49,side*.82],[2.03,.57,side*.68]],goldEdge,.021);
+          rod(g,[-1.88,1.08,side*.59],[-1.97,1.53,side*.59],.018,goldEdge);
+          box(g,-1.94,1.55,side*.015,.48,.095,.045,carbonFiber,.025);
+          box(g,-1.94,1.603,side*.015,.44,.012,.04,goldEdge,.006);
+          box(g,.06,1.34,side*.15,.64,.12,.38,carbonFiber,.05);
+          // Stacked side diffuser fin and satin-gold rocker molding.
+          box(g,-.05,.63,side*(W*.5+.027),2.12,.085,.035,carbonFiber,.018);
+          line(g,[[-2.20,.56,side*.71],[-1.65,.48,side*.82],[-.65,.46,side*.88],[.75,.49,side*.82],[2.03,.57,side*.68]],goldEdge,.015);
+          // Triple louvre outlet over each front fender.
+          for(let l=0;l<3;l++)line(g,[[1.55+l*.11,.98,side*.46],[1.80+l*.11,.94,side*.66],[2.02+l*.11,.86,side*.78]],carbonFiber,.018);
+          line(g,[[1.54,.995,side*.46],[1.88,.965,side*.69],[2.12,.88,side*.80]],goldEdge,.009);
         }
-        box(g,-2.00,1.57,0,1.15,.105,W*.94,dark,.04);
-        box(g,-2.00,1.625,0,1.05,.018,W*.89,goldEdge,.008);
-        box(g,2.17,.45,0,.28,.10,W*.92,dark,.025);
-        for(const side of [-1,1])box(g,2.12,.54,side*.74,.20,.045,.22,red,.018);
+        // Two-tier wing, curved-looking end plates and raised centre gurney.
+        box(g,-2.00,1.57,0,1.15,.105,W*.94,carbonFiber,.04);
+        box(g,-2.00,1.63,0,1.05,.018,W*.89,goldEdge,.008);
+        box(g,-1.88,1.68,0,.48,.028,W*.72,carbonFiber,.012);
+        for(const side of [-1,1]){
+          box(g,-2.18,1.57,side*.96,.38,.31,.045,paint,.025);
+          line(g,[[-2.35,1.45,side*.986],[-2.34,1.68,side*.986],[-2.07,1.73,side*.986]],goldEdge,.009);
+          // Side skirts end in small upturned aero flicks.
+          box(g,.94,.46,side*.88,.68,.10,.15,carbonFiber,.025);
+          box(g,2.18,.58,side*.62,.26,.06,.19,carbonFiber,.018);
+          box(g,-2.32,.48,side*.67,.16,.23,.055,carbonFiber,.018);
+        }
+        // Front light blades and mesh openings on the low nose.
+        box(g,2.425,.50,0,.055,.20,W*.56,carbonFiber,.025);
+        for(let fin=0;fin<9;fin++)box(g,2.458,.50,-.48+fin*.12,.035,.17,.018,alloy,.006);
+        for(const side of [-1,1]){
+          const eye=new THREE.Shape();eye.moveTo(-side*.90,.67);eye.lineTo(-side*.77,.82);eye.lineTo(-side*.43,.87);eye.lineTo(-side*.35,.80);eye.lineTo(-side*.54,.69);eye.lineTo(-side*.90,.65);eye.closePath();
+          const head=mesh(g,new THREE.ShapeGeometry(eye,16),carbonFiber,2.422,0,0);head.rotation.y=Math.PI/2;
+          line(g,[[2.441,.69,side*.90],[2.443,.81,side*.73],[2.441,.83,side*.48]],lamp,.020);
+          for(let led=0;led<3;led++)box(g,2.442,.72+led*.035,side*(.53+led*.08),.014,.012,.045,lamp,.005);
+          box(g,2.445,.61,side*.90,.025,.035,.10,orange,.01);
+          box(g,-2.425,.68,side*.70,.025,.075,.35,red,.022);
+          box(g,-2.442,.68,side*.70,.012,.024,.31,lamp,.01);
+        }
+        // Twin machined exhausts and layered rear diffuser fins.
+        for(const side of [-1,1])for(const x of [-.20,.20]){
+          const exhaust=mesh(g,cached('gold-exhaust',()=>new THREE.CylinderGeometry(.062,.075,.12,24)),alloy,-2.405,.48,side*.47+x);exhaust.rotation.z=Math.PI/2;
+          const bore=mesh(g,cached('gold-exhaust-bore',()=>new THREE.CylinderGeometry(.044,.052,.125,20)),dark,-2.413,.48,side*.47+x);bore.rotation.z=Math.PI/2;
+        }
       }
     }
   }
@@ -492,4 +599,3 @@ export function createVehicle(id:VehicleId,color?:number){
   }
   models.set(key,optimized);return optimized.clone();
 }
-

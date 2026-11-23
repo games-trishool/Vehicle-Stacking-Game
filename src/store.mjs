@@ -38,15 +38,15 @@ export const ACHIEVEMENTS = [
 export const WORLD_IDS = WORLDS.map(world=>world.id);
 export const STORAGE_KEY = 'stackline.progress.v1';
 /** @typedef {{score:number,stacks:number,height:number,world:string,combo:number,date:string}} Run */
-/** @typedef {{version:number,coins:number,best:number,bestHeight:number,selectedVehicle:string,selectedWorld:string,unlocked:string[],unlockedWorlds:string[],achievements:string[],runs:Run[],totalStacks:number,worldTen:string[],settings:{sound:boolean,music:boolean,haptics:boolean,quality:string,reduceMotion:boolean}}} State */
+/** @typedef {{version:number,coins:number,rubies:number,best:number,bestHeight:number,selectedVehicle:string,selectedWorld:string,unlocked:string[],unlockedWorlds:string[],achievements:string[],runs:Run[],totalStacks:number,worldTen:string[],settings:{sound:boolean,music:boolean,haptics:boolean,quality:string,reduceMotion:boolean}}} State */
 /** @returns {State} */
-export function initialState(){return {version:1,coins:0,best:0,bestHeight:0,selectedVehicle:'mixed',selectedWorld:'forest',unlocked:['mixed','car','suv','truck'],unlockedWorlds:['forest','city','space'],achievements:[],runs:[],totalStacks:0,worldTen:[],settings:{sound:true,music:true,haptics:true,quality:'ultra',reduceMotion:false}};}
+export function initialState(){return {version:1,coins:0,rubies:0,best:0,bestHeight:0,selectedVehicle:'mixed',selectedWorld:'forest',unlocked:['mixed','car','suv','truck'],unlockedWorlds:['forest','city','space'],achievements:[],runs:[],totalStacks:0,worldTen:[],settings:{sound:true,music:true,haptics:true,quality:'ultra',reduceMotion:false}};}
 export function loadState(storage){
   const base=initialState();
   try {
     const raw=JSON.parse(storage.getItem(STORAGE_KEY)||'null');
     if(!raw||raw.version!==1) return base;
-    for(const k of ['coins','best','bestHeight','totalStacks']) if(Number.isFinite(raw[k])&&raw[k]>=0) base[k]=raw[k];
+    for(const k of ['coins','rubies','best','bestHeight','totalStacks']) if(Number.isFinite(raw[k])&&raw[k]>=0) base[k]=raw[k];
     base.unlocked=[...new Set([...base.unlocked,...(Array.isArray(raw.unlocked)?raw.unlocked.filter(id=>VEHICLES.some(v=>v.id===id)):[])])];
     if(base.unlocked.includes(raw.selectedVehicle)) base.selectedVehicle=raw.selectedVehicle;
     base.unlockedWorlds=[...new Set([...base.unlockedWorlds,...(Array.isArray(raw.unlockedWorlds)?raw.unlockedWorlds.filter(id=>WORLDS.some(w=>w.id===id)):[])])];
@@ -66,4 +66,3 @@ export function recordRun(state,run){state.best=Math.max(state.best,run.score);s
 export function unlockWorld(state,id){const world=WORLDS.find(w=>w.id===id);if(!world)return false;if(state.unlockedWorlds.includes(id))return true;if(state.coins<world.cost)return false;state.coins-=world.cost;state.unlockedWorlds.push(id);return true;}
 /** Reset only this game's progress; preserve unrelated browser/app storage. */
 export function resetState(storage,state){Object.assign(state,initialState());return saveState(storage,state);}
-
