@@ -154,6 +154,8 @@ The master app icon is `public/icons/icon-512.png`. To regenerate its browser, A
 
 ## Release work still required
 
+The home screen includes a browser-only visual preview labeled **TEST AD** beneath the progress cards; it does not request or serve an ad. Android uses Google's demo banner unit at the bottom of the home screen, alongside the existing demo interstitial. Neither integration serves revenue ads.
+
 The vehicle meshes, surface textures and environments are original procedural art with PBR materials; they are not scanned photographic assets. Collision hulls approximate the vehicle shapes to keep stacking responsive. Impact damage is cosmetic and retains those rigid hulls; full soft-body deformation and detached-door physics are not implemented.
 
 Rankings are local to the device. Global authenticated leaderboards, cloud saves, and anti-cheat require a backend and are not simulated here. Native Android includes Google Mobile Ads for test interstitials; its SDK makes network requests. Browser play has no ads. No analytics service or real-money transactions are implemented. Live monetization is not enabled in this test build.
@@ -161,3 +163,4 @@ Rankings are local to the device. Global authenticated leaderboards, cloud saves
 Before Google Play release, choose the final package identity, create a private signing key, configure release signing, review current target API requirements, prepare the privacy/Data Safety declarations and store artwork, and validate frame times, memory, audio, vibration, pause/resume, and WebView compatibility on physical Android devices. The cloud browser checks do not establish device performance or store readiness. Never commit signing keys or credentials.
 
 Bundled license texts are included in `public/THIRD_PARTY_NOTICES.txt` and in the Android/web assets. Fonts are distributed through the Fontsource packages under their bundled font licenses. Three.js and Cannon ES use the MIT license; Capacitor uses MIT. Game meshes, procedural textures, and sound synthesis are created in source. The picture icon is adapted from the supplied stacked-vehicles image and bundled locally; no game asset needs a remote download at runtime.
+
