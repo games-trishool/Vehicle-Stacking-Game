@@ -38,4 +38,7 @@ Supply the app's own Android AdMob App ID and interstitial ad-unit ID for a live
 
 ## Validation boundaries
 
+The native home screen also requests Google's demo banner unit (`ca-app-pub-3940256099942544/6300978111`) while on the home screen, and hides it during gameplay. The browser shows a clearly labeled visual test preview beneath the progress cards; it does not contact an ad service.
+
 Unit checks exercise the real frequency controller and native-event adapter, including games 3/6, persistence/reset, cache expiry, failures, and waiting for dismissal. The browser integration emulates the Capacitor native bridge while running real game physics and normal input. Android bundle compilation and bundletool validation check the actual native SDK integration. These checks do not establish that Google served an ad on a physical Pixel 8; use the device steps above for that check.
+
