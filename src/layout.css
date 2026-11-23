@@ -388,6 +388,9 @@ button, select { touch-action: manipulation; }
 /* Selection actions remain outside the scrolling collection. */
 .selection-footer { display: flex; flex-direction: column; align-items: stretch; gap: 8px; border-top: 1px solid var(--line); margin-top: 12px; padding-top: 12px; }
 .selection-footer p { min-width: 0; font-size: 11px; line-height: 1.4; margin: 0; color: #75836a; }
+.selection-footer p.selection-error { color: #a34432; font-weight: 600; }
+.world-card .vehicle-status.insufficient { color: #b43c30; font-weight: 700; letter-spacing: .45px; }
+.selection-done:disabled { cursor: not-allowed; opacity: .58; background: #d9ddd2; color: #725c55; box-shadow: none; }
 .selection-footer p .icon { width: 14px; height: 14px; }
 .selection-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .selection-actions button { min-width: 0; min-height: 44px; justify-content: center; padding: 10px 16px; border-radius: 12px; font-weight: 600; }
@@ -396,6 +399,13 @@ button, select { touch-action: manipulation; }
 .selection-done .icon { width: 18px; height: 18px; }
 .reset-game-button { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 44px; flex-shrink: 0; border: 1px solid #d9b6a5; border-radius: 10px; color: #8d4132; background: #f5e9e1; margin-top: auto; }
 .reset-game-button .icon { width: 17px; height: 17px; }
+.settings-howto-button { display:flex; align-items:center; gap:12px; width:100%; min-height:58px; flex-shrink:0; margin-top:12px; padding:10px 13px; border:1px solid #e1e7d8; border-radius:12px; background:linear-gradient(110deg,#f3f5ea,#ffffffa8); text-align:left; }
+.settings-howto-button:hover { background:#eaf0df; }
+.settings-howto-button > .icon:first-child { width:19px; color:#76885d; }
+.settings-howto-button > span { display:flex; flex-direction:column; gap:3px; }
+.settings-howto-button strong { font-size:12px; font-weight:600; }
+.settings-howto-button small { color:#87917d; font-size:9px; }
+.settings-howto-button > .icon:last-child { width:15px; margin-left:auto; color:#929d84; }
 .play-button:disabled { opacity: .6; cursor: wait; }
 @media (max-height: 649px) {
   .selection-footer { margin-top: 8px; padding-top: 8px; gap: 8px; }
@@ -412,3 +422,34 @@ button, select { touch-action: manipulation; }
 }
 
 .achievements-grid.selection-scroll { grid-auto-rows: minmax(112px, max-content); }
+
+/* Leave clear space above the native bottom anchored banner on home. */
+body.has-home-banner { padding-bottom:60px; }
+.ad-banner-slot { position:relative; display:flex; align-items:center; gap:14px; width:min(100%,728px); min-height:84px; margin:16px auto 0; padding:15px 20px; overflow:hidden; border:1px solid #dfe4d5; border-radius:13px; background:linear-gradient(112deg,#f4f6ed,#e8eddf 58%,#f7f8f0); box-shadow:0 6px 20px #2639270d,inset 0 1px 0 #fff; }
+.ad-preview-label { position:absolute; top:6px; left:9px; color:#95a088; font-size:6px; font-weight:700; letter-spacing:1.1px; }
+.ad-preview-mark { display:grid; place-items:center; flex:0 0 48px; height:42px; border-radius:9px; background:linear-gradient(145deg,#314c3c,#66805c); color:#eef4d6; font:700 14px Outfit,sans-serif; letter-spacing:1px; box-shadow:inset 0 1px 0 #ffffff70,0 3px 8px #233d2d25; }
+.ad-preview-copy { display:flex; flex-direction:column; gap:4px; min-width:0; }
+.ad-preview-copy strong { color:#304536; font:600 13px Outfit,sans-serif; }
+.ad-preview-copy small { color:#7f8977; font-size:9px; }
+.ad-preview-action { margin-left:auto; border:1px solid #cbd4bd; border-radius:7px; padding:7px 10px; color:#657751; font-size:7px; font-weight:700; letter-spacing:1px; }
+.native-ad-supported .ad-banner-slot { display:none; }
+
+/* Keep the balance meter grouped directly beneath the pause control. */
+.hud-controls { display:flex; flex-direction:column; align-items:flex-start; gap:10px; pointer-events:none; }
+.hud-controls .hud-button { pointer-events:auto; }
+.hud-controls .stability { position:static; left:auto; bottom:auto; transform:none; width:176px; max-width:min(42vw, 176px); padding:10px 12px; border:1px solid #ffffff75; border-radius:13px; background:linear-gradient(145deg,#ffffff55 0%,#d8f4e329 35%,#071d176e 100%); box-shadow:0 10px 28px #071d1745,inset 0 1px 0 #ffffffc2,inset 0 -1px 0 #ffffff18; backdrop-filter:blur(20px) saturate(1.65); }
+.hud-controls .stability > div:first-child { margin-bottom:7px; text-shadow:0 1px 5px #071d1766; }
+.hud-controls .stability-track { height:6px; border:1px solid #ffffff62; background:#061a1838; box-shadow:inset 0 1px 3px #061a1875; }
+.hud-controls .stability-track i { border-radius:5px; background:linear-gradient(90deg,#c8e989,#f3ffd0 55%,#dff5a2); box-shadow:0 0 12px #e4ffab9c,inset 0 1px 0 #ffffffd9; }
+.hud-controls .stability-track i.is-danger { background:linear-gradient(90deg,#d9945f,#ffd0a0); box-shadow:0 0 12px #ffbd7899,inset 0 1px 0 #ffffffd9; }
+.drop-button { display:none !important; }
+
+@media (max-width: 760px) {
+  .hud-controls { gap:8px; }
+  .hud-controls .stability { width:154px; max-width:42vw; padding:9px 10px; }
+  .ad-banner-slot { min-height:74px; gap:10px; margin-top:12px; padding:14px 12px; }
+  .ad-preview-mark { flex-basis:40px; height:38px; }
+  .ad-preview-copy strong { font-size:12px; }
+  .ad-preview-copy small { font-size:8px; }
+}
+
