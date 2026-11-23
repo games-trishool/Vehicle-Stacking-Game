@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
-import { createVehicle, SPECS, type VehicleId } from './vehicles';
-import { Scenery, type WorldId } from './scenery';
+import { createVehicle, type VehicleId } from './vehicles';
+import { VEHICLE_SPECS } from './vehicle-specs.mjs';
+import { Scenery, disposeSurfaceTextureCache, type WorldId } from './scenery';
 import { landingReward } from './store.mjs';
 import { GameAudio } from './audio';
 import { watchSurfaceContacts } from './physics.mjs';
@@ -24,10 +25,13 @@ export class StackingGame {
   private pendingDamage:{item:Item;point:THREE.Vector3;strength:number;fromAbove:boolean}[]=[];
   onLanding:(landing:Landing)=>void=()=>{};onEnd:(result:Landing)=>void=()=>{};onStability:(value:number)=>void=()=>{};
   private last=performance.now();private raf=0;private observer:ResizeObserver;private particles:{mesh:THREE.InstancedMesh;v:THREE.Vector3[];p:THREE.Vector3[];age:number}[]=[];
-  private environmentTarget:THREE.WebGLRenderTarget;private targetLook=new THREE.Vector3();private cameraPosition=new THREE.Vector3();private particleDummy=new THREE.Object3D();
+  private environmentTarget:THREE.WebGLRenderTarget;private environmentTargets=new Map<WorldId,THREE.WebGLRenderTarget>();private sceneries=new Map<WorldId,Scenery>();private targetLook=new THREE.Vector3();private cameraPosition=new THREE.Vector3();private particleDummy=new THREE.Object3D();
   private frames=0;private frameTime=0;private renders=0;private dirty=true;private overlayOpen=false;private appActive=true;private disposed=false;
   private performanceFrames=0;private performanceTime=0;private adaptiveLow=false;
-  private graphicsPrepared=false;private effectsPreparing=0;
+  private graphicsPrepared=false;private effectsPreparing=0;private homeStacks=new Map<string,THREE.Group>();private activeHomeStack?:THREE.Group;
+  private showroomLights:THREE.PointLight[]=[];
+  private bonusAura?:THREE.Group;
+  onBonusSpawn:(_stackNumber:number)=>void=()=>{};
   private mobileQuery=matchMedia('(max-width: 760px), (pointer: coarse)');
   private visibilityChanged=()=>{if(document.hidden)this.stopFrames();else{this.last=performance.now();this.invalidate();}};
   constructor(public container:HTMLElement){
@@ -35,10 +39,17 @@ export class StackingGame {
     this.renderer.setPixelRatio(Math.min(devicePixelRatio,this.mobileQuery.matches?1.5:1.75));this.renderer.shadowMap.enabled=true;this.renderer.shadowMap.type=THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace=THREE.SRGBColorSpace;this.renderer.toneMapping=THREE.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1.04;container.append(this.renderer.domElement);
     this.renderer.domElement.setAttribute('aria-label','Live 3D vehicle tower');this.renderer.domElement.setAttribute('role','img');
-    this.environmentTarget=worldEnvironment(this.renderer,this.worldId);this.scene.environment=this.environmentTarget.texture;
-    this.scenery=new Scenery(this.scene,'forest');this.scene.add(this.display);this.observer=new ResizeObserver(()=>this.resize());this.observer.observe(container);document.addEventListener('visibilitychange',this.visibilityChanged);this.resize();this.showHome();
+    this.environmentTarget=worldEnvironment(this.renderer,this.worldId);this.environmentTargets.set(this.worldId,this.environmentTarget);this.scene.environment=this.environmentTarget.texture;
+    this.scenery=new Scenery(this.scene,'forest');this.sceneries.set('forest',this.scenery);this.scene.add(this.display);
+    // Soft, shadowless studio fills make the home showcase paint and glass read
+    // clearly against every world without adding work during active gameplay.
+    this.showroomLights=[new THREE.PointLight(0xffdfbd,18,24,2),new THREE.PointLight(0xc5dcff,12,22,2)];
+    this.showroomLights[0].position.set(-7,11,9);this.showroomLights[1].position.set(8,6,7);
+    this.showroomLights.forEach(light=>this.scene.add(light));
+    this.observer=new ResizeObserver(()=>this.resize());this.observer.observe(container);document.addEventListener('visibilitychange',this.visibilityChanged);this.resize();this.showHome();
   }
   get averageFps(){return Math.round(this.frames/Math.max(this.frameTime,.001));}
+  get sceneFrames(){return this.frames;}
   get renderFrames(){return this.renders;}
   get renderPending(){return this.raf!==0||this.effectsPreparing>0;}
   get renderBudget(){return this.mode==='home'?30:60;}
@@ -48,7 +59,7 @@ export class StackingGame {
   get damageSnapshot(){return [...this.items,...(this.falling?[this.falling]:[])].map(item=>({bodyId:item.body.id,id:item.id,...item.damage.snapshot}));}
   get glassChipCount(){return this.glassFragments.count;}
   prepareGraphics(){
-    for(const id of Object.keys(SPECS) as VehicleId[])prepareDamageGeometry(createVehicle(id));
+    for(const id of Object.keys(VEHICLE_SPECS) as VehicleId[])prepareDamageGeometry(createVehicle(id));
     this.graphicsPrepared=true;return this.prepareEffects();
   }
   private effectsKey(){return `${this.worldId}/${this.renderer.shadowMap.enabled}/${this.scenery.localLights.filter(light=>light.visible).length}`;}
@@ -63,23 +74,48 @@ export class StackingGame {
     this.quality=settings.quality;this.reduceMotion=settings.reduceMotion;this.audio.setEnabled(settings.sound);this.audio.setMusicEnabled(settings.music);
     this.performanceFrames=0;this.performanceTime=0;this.applyQuality();
   }
-  private applyQuality(){
-    const mobile=this.mobileQuery.matches,low=this.quality==='low'||(this.quality==='auto'&&(this.adaptiveLow||(navigator.hardwareConcurrency||8)<=4));
-    const ratio=Math.min(devicePixelRatio,low?1:mobile?1.5:1.75);
+  private applyQuality(prepareEffects=true){
+    const mobile=this.mobileQuery.matches,ultra=this.quality==='ultra',low=this.quality==='low';
+    const autoReduced=(this.quality==='auto'&&(this.adaptiveLow||(navigator.hardwareConcurrency||8)<=4))||((this.quality==='high'||ultra)&&this.adaptiveLow);
+    // Keep automatic rendering lean enough for sustained gameplay. Ultra is
+    // still sharper, while avoiding extreme pixel counts on high-DPI screens.
+    const ratio=Math.min(devicePixelRatio,ultra&&!this.adaptiveLow?(mobile?1.5:1.85):low?1:autoReduced?1.25:mobile?1.5:1.75);
     if(this.renderer.getPixelRatio()!==ratio)this.renderer.setPixelRatio(ratio);
     this.renderer.shadowMap.enabled=!low;
-    this.scenery.setLightBudget(low?2:this.quality==='auto'&&mobile?4:8);
-    const shadowSize=mobile&&this.quality!=='high'?1024:2048;
+    this.scenery.setLightBudget(low?2:autoReduced||this.quality==='auto'&&mobile?4:8);
+    const shadowSize=(low||autoReduced||mobile&&this.quality==='auto')?1024:ultra&&mobile?1536:2048;
     if(this.scenery.sun.shadow.mapSize.x!==shadowSize){this.scenery.sun.shadow.map?.dispose();this.scenery.sun.shadow.map=null;this.scenery.sun.shadow.mapSize.set(shadowSize,shadowSize);}
+    const anisotropy=Math.min(this.renderer.capabilities.getMaxAnisotropy(),ultra&&!this.adaptiveLow?16:low?2:autoReduced||mobile?4:12);
+    this.scene.traverseVisible(object=>{
+      if(!(object instanceof THREE.Mesh))return;
+      for(const material of Array.isArray(object.material)?object.material:[object.material]){
+        for(const value of Object.values(material))if(value instanceof THREE.Texture&&value.anisotropy!==anisotropy)value.anisotropy=anisotropy;
+      }
+    });
     this.resize();
-    if(this.graphicsPrepared)void this.prepareEffects();
+    if(prepareEffects&&this.graphicsPrepared)void this.prepareEffects();
   }
   setOverlayOpen(open:boolean){if(open===this.overlayOpen)return;this.overlayOpen=open;this.last=performance.now();this.invalidate();}
   setAppActive(active:boolean){this.appActive=active;if(!active)this.stopFrames();else{this.last=performance.now();this.invalidate();}}
   private stopFrames(){cancelAnimationFrame(this.raf);this.raf=0;}
   private queueFrame(){if(!this.raf&&!this.disposed&&this.appActive&&!document.hidden)this.raf=requestAnimationFrame(this.animate);}
   private invalidate(){this.dirty=true;this.queueFrame();}
-  changeWorld(id:WorldId){if(id===this.worldId)return;this.scenery.dispose();this.environmentTarget.dispose();this.worldId=id;this.scenery=new Scenery(this.scene,id);this.environmentTarget=worldEnvironment(this.renderer,id);this.scene.environment=this.environmentTarget.texture;this.configure({quality:this.quality,reduceMotion:this.reduceMotion,sound:this.audio.enabled,music:this.audio.musicEnabled});}
+  changeWorld(id:WorldId){
+    if(id===this.worldId)return;
+    this.scenery.deactivate();this.worldId=id;
+    const cachedScene=this.sceneries.get(id);
+    if(cachedScene){this.sceneries.delete(id);this.scenery=cachedScene;this.scenery.activate();}
+    else{this.scenery=new Scenery(this.scene,id);this.sceneries.set(id,this.scenery);}
+    this.environmentTarget=this.environmentTargets.get(id)||worldEnvironment(this.renderer,id);
+    this.environmentTargets.delete(id);this.environmentTargets.set(id,this.environmentTarget);this.scene.environment=this.environmentTarget.texture;
+    // Retain only the current and most recent world to keep mobile memory bounded.
+    while(this.sceneries.size>2){const oldest=this.sceneries.keys().next().value as WorldId;if(oldest===id)break;this.sceneries.get(oldest)?.dispose();this.sceneries.delete(oldest);}
+    while(this.environmentTargets.size>2){const oldest=this.environmentTargets.keys().next().value as WorldId;if(oldest===id)break;this.environmentTargets.get(oldest)?.dispose();this.environmentTargets.delete(oldest);}
+    // Reapply only renderer and light settings here. Reconfiguring audio and
+    // compiling the shatter effect in the button event made world selection stall.
+    this.applyQuality(false);
+    if(this.graphicsPrepared)requestAnimationFrame(()=>{if(!this.disposed&&this.worldId===id)void this.prepareEffects();});
+  }
   setVehicles(selected:string,unlocked:string[]){this.selectedVehicle=selected;this.unlocked=unlocked.filter(id=>id!=='mixed') as VehicleId[];if(this.mode==='home')this.showHome();}
   private pick():VehicleId{if(this.selectedVehicle!=='mixed')return this.selectedVehicle as VehicleId;return this.unlocked[Math.floor(Math.random()*this.unlocked.length)]||'car';}
   private clear(){
@@ -88,8 +124,8 @@ export class StackingGame {
     // A missed drop stays outside items so its fall can animate after game over.
     // Remove it before discarding the reference when starting another run or home.
     if(this.falling){this.falling.damage.dispose();this.scene.remove(this.falling.mesh);}
-    if(this.held)this.scene.remove(this.held);
-    this.items=[];this.falling=undefined;this.held=undefined;this.display.clear();
+    this.clearBonusAura();if(this.held)this.scene.remove(this.held);
+    this.items=[];this.falling=undefined;this.held=undefined;if(this.activeHomeStack)this.display.remove(this.activeHomeStack);this.activeHomeStack=undefined;this.display.clear();
     if(this.guide){this.scene.remove(this.guide);this.guide.geometry.dispose();(this.guide.material as THREE.Material).dispose();}
     this.guide=undefined;
     for(const p of this.particles){this.scene.remove(p.mesh);p.mesh.dispose();p.mesh.geometry.dispose();(p.mesh.material as THREE.Material).dispose();}
@@ -97,15 +133,22 @@ export class StackingGame {
   }
   reset(){this.score=0;this.stacks=0;this.combo=0;this.coins=0;this.stability=100;this.showHome();}
   showHome(){
-    this.clear();this.mode='home';let y=.49;
-    const ids:VehicleId[]=this.selectedVehicle==='mixed'?['suv','truck','car','sports']:Array(4).fill(this.selectedVehicle);
-    for(let i=0;i<4;i++){const id=ids[i],car=createVehicle(id);car.position.set([0,-.2,.12,-.16][i],y,0);car.rotation.y=[-.06,.045,-.045,.03][i];this.display.add(car);y+=SPECS[id].height-.32;}
-    this.top=y;this.lookY=y*.49;this.phase=0;this.last=performance.now();this.invalidate();
+    this.clear();this.mode='home';this.showroomLights.forEach(light=>light.visible=true);
+    const key=this.selectedVehicle;let stack=this.homeStacks.get(key);
+    if(!stack){stack=this.buildHomeStack(key);this.homeStacks.set(key,stack);}
+    else{this.homeStacks.delete(key);this.homeStacks.set(key,stack);}
+    this.activeHomeStack=stack;this.display.add(stack);this.top=stack.userData.top;this.lookY=this.top*.49;this.phase=0;this.last=performance.now();this.invalidate();
+  }
+  private buildHomeStack(selected:string){
+    const stack=new THREE.Group();let y=.49;
+    const ids:VehicleId[]=selected==='mixed'?['suv','truck','car','sports']:Array(4).fill(selected) as VehicleId[];
+    for(let i=0;i<4;i++){const id=ids[i],car=createVehicle(id);car.position.set([0,-.2,.12,-.16][i],y,0);car.rotation.y=[-.06,.045,-.045,.03][i];stack.add(car);y+=VEHICLE_SPECS[id].height-.32;}
+    stack.userData.top=y;return stack;
   }
   start(){
-    this.clear();this.mode='playing';this.score=0;this.stacks=0;this.combo=0;this.coins=0;this.top=.49;this.stability=100;this.phase=0;this.lookY=2.2;this.audio.startMusic(true);
+    this.clear();this.mode='playing';this.showroomLights.forEach(light=>light.visible=false);this.score=0;this.stacks=0;this.combo=0;this.coins=0;this.top=.49;this.stability=100;this.phase=0;this.lookY=2.2;this.audio.startMusic(true);
     this.world=new CANNON.World({gravity:new CANNON.Vec3(0,-12,0)});this.world.broadphase=new CANNON.SAPBroadphase(this.world);this.world.allowSleep=true;
-    (this.world.solver as CANNON.GSSolver).iterations=16;this.world.defaultContactMaterial.friction=.65;this.world.defaultContactMaterial.restitution=.045;
+    (this.world.solver as CANNON.GSSolver).iterations=12;this.world.defaultContactMaterial.friction=.65;this.world.defaultContactMaterial.restitution=.045;
     const floor=new CANNON.Body({mass:0,shape:new CANNON.Box(new CANNON.Vec3(4.1,.3,4.1)),position:new CANNON.Vec3(0,.19,0)});this.world.addBody(floor);
     const ground=new CANNON.Body({mass:0,shape:new CANNON.Plane()});ground.quaternion.setFromEuler(-Math.PI/2,0,0);ground.position.y=-.13;this.world.addBody(ground);
     watchSurfaceContacts(this.world,[floor,ground],()=>{
@@ -115,7 +158,7 @@ export class StackingGame {
     const base=this.makeItem(this.pick(),0,.49);base.body.type=CANNON.Body.STATIC;base.body.mass=0;base.body.updateMassProperties();this.world.addBody(base.body);this.items.push(base);this.scene.add(base.mesh);this.top=.49+base.height;this.spawn();this.onStability(100);this.last=performance.now();this.performanceFrames=0;this.performanceTime=0;this.invalidate();
   }
   private makeItem(id:VehicleId,x:number,bottom:number):Item{
-    const spec=SPECS[id],body=createVehicleBody(id,x,bottom);
+    const spec=VEHICLE_SPECS[id],body=createVehicleBody(id,x,bottom);
     const mesh=createVehicle(id);mesh.position.set(x,bottom,0);
     const item:Item={mesh,body,id,height:spec.height,landedY:bottom,damage:new VehicleDamage(mesh)};
     body.addEventListener('collide',(event:{body:CANNON.Body;contact:CANNON.ContactEquation})=>{
@@ -137,7 +180,9 @@ export class StackingGame {
     return item;
   }
   private applyImpacts(){
-    for(const event of this.pendingDamage.splice(0,4)){
+    // Apply at most one cosmetic dent per frame. Several simultaneous contacts
+    // can otherwise trigger repeated geometry edits and raycasts in one frame.
+    for(const event of this.pendingDamage.splice(0,1)){
       const result=event.item.damage.impact(event.point,event.strength,event.fromAbove);
       if(result){
         const point=event.item.mesh.localToWorld(result.glassPoint),normal=result.normal.transformDirection(event.item.mesh.matrixWorld);
@@ -145,12 +190,27 @@ export class StackingGame {
       }
     }
   }
-  private spawn(){if(this.mode!=='playing')return;this.heldId=this.pick();this.held=createVehicle(this.heldId);this.held.position.set(-3,this.top+3.1,0);this.scene.add(this.held);this.phase=-Math.PI/2;this.elapsed=0;this.settled=0;this.contact=false;
+  private spawn(){if(this.mode!=='playing')return;const stackNumber=this.stacks+1,bonus=stackNumber>=10&&stackNumber%10===0;this.heldId=bonus?'gold':this.pick();this.held=createVehicle(this.heldId);this.held.position.set(-3,this.top+3.1,0);this.scene.add(this.held);this.phase=-Math.PI/2;this.elapsed=0;this.settled=0;this.contact=false;
+    if(bonus){this.addBonusAura();this.onBonusSpawn(stackNumber);}
     this.guide=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3(0,-3,0)]),new THREE.LineDashedMaterial({color:0xf1e5ad,transparent:true,opacity:.55,dashSize:.12,gapSize:.13}));this.guide.computeLineDistances();this.scene.add(this.guide);
+  }
+  private addBonusAura(){
+    if(!this.held)return;
+    const aura=new THREE.Group(),gold=new THREE.MeshBasicMaterial({color:0xffc34e,transparent:true,opacity:.78,depthWrite:false});
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(2.48,.022,7,72),gold);ring.rotation.x=Math.PI/2;ring.scale.set(1,.46,1);ring.position.y=.86;aura.add(ring);
+    const spark=new THREE.MeshBasicMaterial({color:0xffedaa});
+    for(let i=0;i<8;i++){const a=i*Math.PI/4,gem=new THREE.Mesh(new THREE.OctahedronGeometry(.065,0),spark);gem.position.set(Math.cos(a)*2.40,.84+Math.sin(a*2)*.10,Math.sin(a)*1.04);aura.add(gem);}
+    const light=new THREE.PointLight(0xffb934,22,7,2);light.position.y=.9;aura.add(light);
+    this.held.add(aura);this.bonusAura=aura;
+  }
+  private clearBonusAura(){
+    if(!this.bonusAura)return;this.bonusAura.parent?.remove(this.bonusAura);
+    this.bonusAura.traverse(object=>{if(object instanceof THREE.Mesh){object.geometry.dispose();const materials=Array.isArray(object.material)?object.material:[object.material];materials.forEach(material=>material.dispose());}});
+    this.bonusAura=undefined;
   }
   drop(){
     if(this.mode!=='playing'||!this.held||!this.world)return false;
-    const item=this.makeItem(this.heldId,this.held.position.x,this.held.position.y);this.scene.remove(this.held);this.held=undefined;
+    const item=this.makeItem(this.heldId,this.held.position.x,this.held.position.y);this.clearBonusAura();this.scene.remove(this.held);this.held=undefined;
     if(this.guide){this.scene.remove(this.guide);this.guide.geometry.dispose();(this.guide.material as THREE.Material).dispose();this.guide=undefined;}
     this.scene.add(item.mesh);this.world.addBody(item.body);this.falling=item;this.elapsed=0;this.settled=0;this.audio.drop();
     item.body.addEventListener('collide',(e:{body:CANNON.Body})=>{if(this.items.some(i=>i.body===e.body)){this.contact=true;if(this.shake<.04&&!this.reduceMotion)this.shake=.08;}});return true;
@@ -164,24 +224,25 @@ export class StackingGame {
     item.landedY=item.body.position.y-item.height/2;this.items.push(item);this.falling=undefined;this.top=item.body.position.y+item.height/2;
     if(perfect){item.body.angularVelocity.scale(.25,item.body.angularVelocity);if(!this.reduceMotion)this.slow=.52;}
     this.audio.landing(perfect,this.combo);if(!this.reduceMotion)this.shake=perfect?.07:.12;
-    this.burst(new THREE.Vector3(item.body.position.x,item.landedY+.5,0),perfect);
+    this.burst(new THREE.Vector3(item.body.position.x,item.landedY+.5,0),perfect,item.id==='gold');
     this.onLanding({perfect,combo:this.combo,score:this.score,stacks:this.stacks,height:this.top,coins:reward.coins,stability:this.stability});this.spawnTimer=.62;
   }
-  private end(){if(this.mode!=='playing')return;this.mode='ended';this.audio.stopMusic();this.audio.fail();if(this.held){this.scene.remove(this.held);this.held=undefined;}if(this.guide)this.guide.visible=false;this.onEnd({perfect:false,combo:this.combo,score:this.score,stacks:this.stacks,height:this.top,coins:this.coins,stability:this.stability});}
-  private burst(position:THREE.Vector3,perfect:boolean){
-    const n=perfect?45:22,geo=new THREE.SphereGeometry(perfect?.035:.07,5,4),material=new THREE.MeshBasicMaterial({color:perfect?0xffd571:0xa4a58a,transparent:true});const mesh=new THREE.InstancedMesh(geo,material,n);const p=[],v=[];
+  private end(){if(this.mode!=='playing')return;this.mode='ended';this.audio.stopMusic();this.audio.fail();this.clearBonusAura();if(this.held){this.scene.remove(this.held);this.held=undefined;}if(this.guide)this.guide.visible=false;this.onEnd({perfect:false,combo:this.combo,score:this.score,stacks:this.stacks,height:this.top,coins:this.coins,stability:this.stability});}
+  private burst(position:THREE.Vector3,perfect:boolean,bonus=false){
+    const n=bonus?72:perfect?45:22,geo=new THREE.SphereGeometry(perfect?.035:.07,5,4),material=new THREE.MeshBasicMaterial({color:bonus?0xffbf3f:perfect?0xffd571:0xa4a58a,transparent:true});const mesh=new THREE.InstancedMesh(geo,material,n);const p=[],v=[];
     for(let i=0;i<n;i++){p.push(position.clone().add(new THREE.Vector3((Math.random()-.5)*3,.1,(Math.random()-.5)*2)));v.push(new THREE.Vector3((Math.random()-.5)*4,1+Math.random()*3,(Math.random()-.5)*4));}this.scene.add(mesh);this.particles.push({mesh,p,v,age:0});
   }
   private update(dt:number){
     const visualDt=dt;
     if(this.mode==='home'){
-      this.phase+=dt*.25;this.display.rotation.y=Math.sin(this.phase)*.1;
+      this.phase+=dt*.20;this.display.rotation.y=Math.sin(this.phase)*.17;
     }
     if(this.mode==='playing'||this.mode==='ended'){
       if(this.slow>0){this.slow-=dt;dt*=.38;}
       if(this.held&&this.mode==='playing'){
         this.phase+=dt*(1.1+Math.min(this.stacks,35)*.035);const center=this.items.at(-1)?.body.position.x||0;
-        this.held.position.x=center+Math.sin(this.phase)*3.4;this.held.position.y=this.top+3.1+(this.reduceMotion?0:Math.sin(this.phase*2)*.045);
+        this.held.position.x=center+Math.sin(this.phase)*3.4;this.held.position.y=this.top+3.1+(this.reduceMotion?0:Math.sin(this.phase*2)*(this.heldId==='gold'?.085:.045));
+        if(this.heldId==='gold'){const motion=this.reduceMotion?.18:1;this.held.rotation.y=Math.sin(this.phase*.75)*.10*motion;this.held.rotation.z=Math.sin(this.phase*1.25)*.025*motion;if(this.bonusAura){this.bonusAura.rotation.y+=dt*(this.reduceMotion?.35:1.5);this.bonusAura.scale.setScalar(.98+Math.sin(this.phase*3)*.035*motion);}}
         if(this.guide)this.guide.position.set(this.held.position.x,this.held.position.y,0);
       }
       this.world?.step(1/60,dt,3);
@@ -205,7 +266,10 @@ export class StackingGame {
     this.lookY=THREE.MathUtils.lerp(this.lookY,desiredY,1-Math.exp(-visualDt*(this.reduceMotion?12:2.8)));
     const center=playing?(this.items.at(-1)?.body.position.x||0)*.38:0;
     this.targetLook.set(center,this.lookY,0);
-    const narrow=this.camera.aspect<.85;const distance=narrow?18:16;
+    const narrow=this.camera.aspect<.85;
+    // Bring the home vehicle showcase closer so its paint, glazing and wheel
+    // detailing remain legible in the tall mobile card. Keep gameplay framing.
+    const distance=playing?(narrow?18:16):(narrow?15:13.2);
     const position=this.cameraPosition.set(center+distance*.62,this.lookY+(playing?5:3.4),distance*.77);
     if(this.shake>0){this.shake=Math.max(0,this.shake-visualDt*.32);position.x+=(Math.random()-.5)*this.shake;position.y+=(Math.random()-.5)*this.shake;}
     this.camera.position.copy(position);this.camera.lookAt(this.targetLook);
@@ -213,7 +277,13 @@ export class StackingGame {
     this.glassFragments.update(visualDt);
     const dummy=this.particleDummy;for(let j=this.particles.length-1;j>=0;j--){const p=this.particles[j];if(this.mode==='paused')continue;p.age+=visualDt;for(let i=0;i<p.p.length;i++){p.v[i].y-=visualDt*4;p.p[i].addScaledVector(p.v[i],visualDt);dummy.position.copy(p.p[i]);dummy.scale.setScalar(Math.max(.01,1-p.age/1.4));dummy.updateMatrix();p.mesh.setMatrixAt(i,dummy.matrix);}p.mesh.instanceMatrix.needsUpdate=true;(p.mesh.material as THREE.MeshBasicMaterial).opacity=Math.max(0,1-p.age/1.4);if(p.age>1.4){this.scene.remove(p.mesh);p.mesh.dispose();p.mesh.geometry.dispose();(p.mesh.material as THREE.Material).dispose();this.particles.splice(j,1);}}
   }
-  private syncItem(item:Item){item.mesh.position.set(item.body.position.x,item.body.position.y,item.body.position.z);item.mesh.quaternion.set(item.body.quaternion.x,item.body.quaternion.y,item.body.quaternion.z,item.body.quaternion.w);item.mesh.translateY(-item.height/2);}
+  private syncItem(item:Item){
+    // Static bases and settled bodies keep the exact same render transform.
+    // Avoid rewriting every mesh transform as a tower grows; Cannon wakes a
+    // sleeping body before it moves again, so moving pieces resume syncing.
+    if(item.body.type===CANNON.Body.STATIC||item.body.sleepState===CANNON.Body.SLEEPING)return;
+    item.mesh.position.set(item.body.position.x,item.body.position.y,item.body.position.z);item.mesh.quaternion.set(item.body.quaternion.x,item.body.quaternion.y,item.body.quaternion.z,item.body.quaternion.w);item.mesh.translateY(-item.height/2);
+  }
   private animate=(now:number)=>{
     this.raf=0;if(this.disposed||!this.appActive||document.hidden)return;
     const frozen=this.mode==='paused'||this.overlayOpen,raw=Math.max(0,(now-this.last)/1000);
@@ -223,14 +293,21 @@ export class StackingGame {
     if(!frozen){this.frameTime+=raw;this.frames++;}
     this.update(frozen?0:Math.min(raw,.05));this.renderer.render(this.scene,this.camera);this.renders++;
     // Judge sustained gameplay only; menu idle time and the 30 FPS preview are excluded.
-    if(!frozen&&this.mode==='playing'&&this.quality==='auto'&&!this.adaptiveLow){
+    if(!frozen&&this.mode==='playing'&&this.quality!=='low'&&!this.adaptiveLow){
       this.performanceFrames++;this.performanceTime+=raw;
-      if(this.performanceTime>=4&&this.performanceFrames>=45){
-        if(this.performanceTime/this.performanceFrames>.038){this.adaptiveLow=true;this.applyQuality();}
+      if(this.performanceTime>=2.5&&this.performanceFrames>=60){
+        if(this.performanceTime/this.performanceFrames>.023){
+          this.adaptiveLow=true;
+          // Reduce fill cost without changing lights or shadow variants while
+          // the run is live; those changes can force shader compilation.
+          const ratio=Math.min(devicePixelRatio,1.25);
+          if(this.renderer.getPixelRatio()!==ratio)this.renderer.setPixelRatio(ratio);
+        }
         this.performanceFrames=0;this.performanceTime=0;
       }
     }
     if(!frozen)this.queueFrame();
   };
-  dispose(){this.disposed=true;this.stopFrames();document.removeEventListener('visibilitychange',this.visibilityChanged);this.observer.disconnect();this.clear();this.glassFragments.dispose();this.audio.dispose();this.scenery.dispose();this.environmentTarget.dispose();this.renderer.dispose();}
+  dispose(){this.disposed=true;this.stopFrames();document.removeEventListener('visibilitychange',this.visibilityChanged);this.observer.disconnect();this.clear();this.homeStacks.clear();this.showroomLights.forEach(light=>{this.scene.remove(light);light.dispose();});this.glassFragments.dispose();this.audio.dispose();this.sceneries.forEach(scenery=>scenery.dispose());this.sceneries.clear();this.environmentTargets.forEach(target=>target.dispose());this.environmentTargets.clear();disposeSurfaceTextureCache();this.renderer.dispose();}
 }
+
