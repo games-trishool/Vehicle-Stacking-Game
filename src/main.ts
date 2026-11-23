@@ -13,13 +13,18 @@ import { App } from '@capacitor/app';
 import { createInterstitials } from './admob';
 import { StackingGame,type Landing } from './game';
 import { icon } from './icons';
+import { showHomeBanner,hideHomeBanner } from './admob';
 import { VEHICLES,WORLDS,ACHIEVEMENTS,loadState,saveState,unlockVehicle,unlockWorld,resetState,recordRun } from './store.mjs';
 import { vehicleThumbnails,worldArt } from './thumbnails';
 import type { WorldId } from './scenery';
 
 let storage:Storage;
 try{storage=window.localStorage;}catch{storage={getItem:()=>null,setItem:()=>{throw new Error("Storage unavailable");},removeItem:()=>{},clear:()=>{},key:()=>null,length:0};}
-const state=loadState(storage);let game:StackingGame|undefined,thumbs:Record<string,string>={},dialogKind='',dialogPage=0,runPreviousBest=state.best,sessionBestCombo=0,runRecorded=false,persistWarned=false,bootReady=false,pendingVehicle=state.selectedVehicle,pendingWorld=state.selectedWorld;
+const state=loadState(storage);let selectionUpdatePending=false;
+// Apply the new Ultra default once to existing saves that were still on Auto;
+// players can choose another preset afterward and that preference will stick.
+try{if(storage.getItem('stackline.ultra-visual-upgrade.v1')!=='1'){if(state.settings.quality==='auto'){state.settings.quality='ultra';saveState(storage,state);}storage.setItem('stackline.ultra-visual-upgrade.v1','1');}}catch{/* Graphics remain available when storage is unavailable. */}
+let game:StackingGame|undefined,thumbs:Record<string,string>={},dialogKind='',dialogPage=0,runPreviousBest=state.best,sessionBestCombo=0,runRecorded=false,persistWarned=false,bootReady=false,pendingVehicle=state.selectedVehicle,pendingWorld=state.selectedWorld;
 const app=document.querySelector<HTMLDivElement>('#app')!;
 const interstitials=createInterstitials(storage);
 interstitials.onBusyChange=busy=>{
@@ -31,7 +36,7 @@ app.innerHTML=`
   <header class="header">
     <button class="brand" data-action="home" aria-label="Stack Vechiles home"><span class="brand-mark"><img src="/icons/icon-192.png" alt="" /></span><span class="brand-name">Stack <span>Vechiles</span></span></button>
     <nav class="navigation" aria-label="Main navigation"><button class="nav-link active" data-action="home">The game</button><button class="nav-link" data-action="worlds">Explore worlds</button><button class="nav-link" data-action="garage">Garage</button><button class="nav-link" data-action="leaderboard">Leaderboard</button></nav>
-    <div class="header-actions"><button class="coin-balance" data-action="garage" aria-label="Coins and garage">${icon('coin')}<span id="coin-balance">${state.coins}</span></button><span class="header-divider"></span><button class="icon-button header-help" data-action="howto" aria-label="How to play">${icon('info')}</button><button class="icon-button" data-action="settings" aria-label="Settings">${icon('settings')}</button></div>
+    <div class="header-actions"><button class="coin-balance" data-action="garage" aria-label="Coins and garage">${icon('coin')}<span id="coin-balance">${state.coins}</span></button><span class="header-divider"></span><button class="icon-button" data-action="settings" aria-label="Settings">${icon('settings')}</button></div>
   </header>
   <main class="home-main">
     <div class="hero" id="hero">
@@ -52,14 +57,11 @@ app.innerHTML=`
         <div class="scene-height home-only"><span class="height-icon">${icon('mountain')}</span><span><small>THE ONLY WAY</small><strong>is up.</strong></span></div>
         <div class="scene-caption home-only"><div><span class="scene-kicker" id="scene-kicker">01 / THE GREAT OUTDOORS</span><h2 id="scene-world-title">Into the forest.</h2><p id="scene-world-copy">Find your balance. Reach new heights.</p></div><button class="scene-explore" data-action="worlds" aria-label="Explore environments">${icon('arrow')}</button></div>
         <div class="scene-foot home-only"><span><i></i> SIX WORLDS. LIMITLESS HEIGHTS.</span><span>DRAG YOUR AMBITION UPWARD ${icon('layers')}</span></div>
-        <div class="loading" id="loading"><span class="spinner"></span>Finding our balance…</div>
         <div class="game-hud" id="game-hud" hidden>
-          <div class="hud-top"><button class="hud-button" data-action="pause" aria-label="Pause game">${icon('pause')}</button><div class="hud-score"><small>SCORE</small><strong id="score">0</strong></div><div class="hud-coins">${icon('coin')}<span id="run-coins">0</span></div></div>
+          <div class="hud-top"><div class="hud-controls"><button class="hud-button" data-action="pause" aria-label="Pause game">${icon('pause')}</button><div class="stability"><div><span>TOWER BALANCE</span><span id="stability-value">100%</span></div><div class="stability-track"><i id="stability-fill"></i></div></div></div><div class="hud-score"><small>SCORE</small><strong id="score">0</strong></div><div class="hud-coins">${icon('coin')}<span id="run-coins">0</span></div></div>
           <div class="hud-height"><span id="height">0.0</span><small>METERS UP</small></div>
           <div class="landing-feedback" id="landing-feedback" aria-live="polite"></div>
-          <div class="stability"><div><span>TOWER BALANCE</span><span id="stability-value">100%</span></div><div class="stability-track"><i id="stability-fill"></i></div></div>
-          <div class="drop-instruction" id="drop-instruction"><span class="tap-ring"></span><strong>Tap to drop</strong><small>or press space · aim for the center</small></div>
-          <button class="drop-button" data-action="drop">${icon('down')} DROP VEHICLE <span>SPACE</span></button>
+          <div class="drop-instruction" id="drop-instruction"><span class="tap-ring"></span><strong>Tap to drop</strong></div>
         </div>
       </section>
     </div>
@@ -67,13 +69,18 @@ app.innerHTML=`
       <div class="progress-heading"><span>EVERY CLIMB COUNTS.</span><span>Your journey, so far ${icon('arrow')}</span></div>
       <div class="progress-cards">
         <button class="progress-card record-card" data-action="leaderboard"><span class="card-icon">${icon('trophy')}</span><div><small>PERSONAL BEST</small><strong id="best-score">0<span> pts</span></strong><p>There’s always a little higher.</p></div><span class="card-arrow">${icon('arrow')}</span></button>
-        <button class="progress-card" data-action="achievements" aria-label="Achievements"><span class="card-icon">${icon('flag')}</span><div><small>ACHIEVEMENTS</small><strong id="achievement-count">0 <span>/ 6</span></strong><p>Your next milestone is waiting.</p></div><span class="card-arrow">${icon('arrow')}</span></button>
+        <button class="progress-card" data-action="achievements" aria-label="Achievements"><span class="card-icon">${icon('flag')}</span><div><small>ACHIEVEMENTS</small><strong id="achievement-count">0 <span>/ 12</span></strong><p>Your next milestone is waiting.</p></div><span class="card-arrow">${icon('arrow')}</span></button>
         <button class="progress-card garage-card" data-action="garage" aria-label="Garage"><div class="garage-preview" id="garage-preview"></div><div><small>GARAGE</small><strong id="next-vehicle">Sport GT</strong><p id="unlock-progress">${state.coins} / 150 coins</p><div class="unlock-track"><i id="unlock-fill"></i></div></div><span class="card-arrow">${icon('arrow')}</span></button>
       </div>
+      <aside class="ad-banner-slot" id="ad-banner-preview" aria-label="Test banner advertisement preview">
+        <span class="ad-preview-label">TEST AD</span><span class="ad-preview-mark">AD</span>
+        <span class="ad-preview-copy"><strong>Banner ad preview</strong><small>Demo placement · Android test banner appears here</small></span>
+        <span class="ad-preview-action">DEMO</span>
+      </aside>
     </section>
-    <footer class="footer"><span class="footer-brand">Stack Vechiles <span>Built for the climb.</span></span><span>A moment of focus. A world of fun.</span><button data-action="howto">How to play ${icon('info')}</button></footer>
   </main>
  </div>
+ <div class="loading" id="loading" role="status" aria-live="polite"><span class="loading-emblem">${icon('layers')}</span><span class="loading-kicker">STACK VEHICLES</span><strong class="loading-title">STACKLINE</strong><span class="loading-status" id="loading-status">Preparing your world</span><div class="loading-track" role="progressbar" aria-label="Loading game" aria-valuemin="0" aria-valuemax="100" aria-valuenow="4"><i id="loading-progress"></i></div><span class="loading-percent" id="loading-percent">4%</span></div>
  <dialog id="modal" class="modal"><div id="modal-content"></div></dialog>
  <div class="toast" id="toast" role="status" aria-live="polite"></div>
  <div class="achievement-toast" id="achievement-toast" role="status" aria-live="polite"></div>
@@ -84,6 +91,10 @@ const worldNames:Record<string,string[]>={forest:['01 / THE GREAT OUTDOORS','Int
 function persist(){if(!saveState(storage,state)&&!persistWarned){persistWarned=true;toast('Storage is full or unavailable. Progress stays in memory this session.');}}
 function toast(message:string){$('toast').textContent=message;$('toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=window.setTimeout(()=>$('toast').classList.remove('visible'),3300);}
 let toastTimer=0,achievementTimer=0,feedbackTimer=0;
+function showHomeAd(){
+ if(Capacitor.getPlatform()==='android'&&Capacitor.isPluginAvailable('AdMob'))document.body.classList.add('native-ad-supported');
+ void showHomeBanner().then(shown=>{if(document.body.classList.contains('in-game')){if(shown)void hideHomeBanner();document.body.classList.remove('has-home-banner');return;}document.body.classList.toggle('has-home-banner',shown);});
+}
 function renderState(){
  const v=VEHICLES.find(v=>v.id===state.selectedVehicle)!,w=WORLDS.find(w=>w.id===state.selectedWorld)!;
  $('coin-balance').textContent=String(state.coins);$('selected-vehicle-name').textContent=v.name;$('selected-world-name').textContent=w.name;
@@ -100,11 +111,11 @@ function earn(id:string){if(state.achievements.includes(id))return;state.achieve
 }
 function haptic(perfect=false){if(state.settings.haptics&&navigator.vibrate)navigator.vibrate(perfect?[18,30,18]:15);}
 function start(){
- if(!game||!bootReady||interstitials.busy)return;interstitials.preload();closeDialog(false);document.body.classList.add('in-game');$('game-hud').hidden=false;
+ if(!game||!bootReady||interstitials.busy)return;void hideHomeBanner().then(()=>document.body.classList.remove('has-home-banner'));interstitials.preload();closeDialog(false);document.body.classList.add('in-game');$('game-hud').hidden=false;
  $('score').textContent='0';$('run-coins').textContent='0';$('height').textContent='0.0';$('landing-feedback').classList.remove('show');$('drop-instruction').classList.remove('hidden');$('stability-value').textContent='100%';$('stability-fill').style.width='100%';
  runPreviousBest=state.best;sessionBestCombo=0;runRecorded=false;game.start();game.resize();
 }
-function home(reset=false){if(interstitials.busy)return;closeDialog(false);document.body.classList.remove('in-game');$('game-hud').hidden=true;if(reset)game?.reset();else game?.showHome();game?.resize();renderState();}
+function home(reset=false){if(interstitials.busy)return;closeDialog(false);document.body.classList.remove('in-game');$('game-hud').hidden=true;if(reset)game?.reset();else game?.showHome();game?.resize();renderState();showHomeAd();}
 function modalHeader(eyebrow:string,title:string,copy:string,showClose=true){return `<div class="modal-heading"><div><span class="eyebrow">${eyebrow}</span><h2>${title}</h2><p>${copy}</p></div>${showClose?`<button class="icon-button close-modal" data-action="close" aria-label="Close dialog">${icon('close')}</button>`:''}</div>`;}
 function openDialog(kind:string){
  if(interstitials.busy)return;
@@ -116,18 +127,18 @@ function openDialog(kind:string){
  if(kind==='vehicles'||kind==='garage'){
    const isGarage=kind==='garage';content=modalHeader(isGarage?'GOOD THINGS COME WITH WHEELS':'YOUR TOWER. YOUR WAY.',isGarage?'The garage.':'Pick your ride.',isGarage?'Earn coins with every landing. Find your next favorite.':'Stick with a favorite, or keep the climb surprising.',false);
    content+=`<div class="modal-meta"><span>${state.unlocked.length-1} / ${VEHICLES.length-1} vehicles unlocked</span><span class="coin-balance">${icon('coin')} ${state.coins} coins</span></div><div class="vehicle-grid">`;
-   for(const v of VEHICLES){const owned=state.unlocked.includes(v.id),selected=pendingVehicle===v.id;content+=`<button class="vehicle-card ${selected?'selected':''} ${!owned?'locked':''} ${v.id==='mixed'?'mixed-card':''}" data-action="select-vehicle" data-id="${v.id}" aria-pressed="${selected}"><div class="vehicle-card-top"><span>${v.label}</span>${selected?`<span class="selected-check">${icon('check')}</span>`:!owned?icon('lock'):''}</div><div class="vehicle-render">${v.id==='mixed'?'<span class="mixed-spark spark-one">✦</span><span class="mixed-spark spark-two">✦</span>':''}<img src="${thumbs[v.id]||''}" alt="${v.name} 3D model" /></div><div class="vehicle-details"><h3>${v.name}</h3><p>${v.subtitle}</p><span class="vehicle-status">${selected?'SELECTED':owned?'READY TO STACK':`${icon('coin')} ${v.cost} · UNLOCK`}</span></div></button>`;}
+   for(const v of VEHICLES){const owned=state.unlocked.includes(v.id),pending=pendingVehicle===v.id,selected=owned&&pending,shortfall=Math.max(0,v.cost-state.coins);content+=`<button class="vehicle-card ${selected?'selected':''} ${!owned?'locked':''} ${!owned&&pending?'locked-selected':''} ${v.id==='mixed'?'mixed-card':''}" data-action="select-vehicle" data-id="${v.id}" aria-pressed="${selected}"><div class="vehicle-card-top"><span>${v.label}</span>${selected?`<span class="selected-check">${icon('check')}</span>`:!owned?icon('lock'):''}</div><div class="vehicle-render">${v.id==='mixed'?'<span class="mixed-spark spark-one">✦</span><span class="mixed-spark spark-two">✦</span>':''}<img src="${thumbs[v.id]||''}" alt="${v.name} 3D model" /></div><div class="vehicle-details"><h3>${v.name}</h3><p>${v.subtitle}</p><span class="vehicle-status ${!owned&&shortfall>0&&pending?'insufficient':''}">${selected?'SELECTED':owned?'READY TO STACK':shortfall>0&&pending?`${shortfall} COINS MORE NEEDED`:`${icon('coin')} ${v.cost} · UNLOCK`}</span></div></button>`;}
    content+='</div>'+selectionFooter('vehicles');
  }
  if(kind==='worlds'){
    content=modalHeader('A CHANGE OF SCENERY','Find your happy place.','Choose a place, then tap Done to save.',false);
    content+=`<div class="modal-meta"><span>${state.unlockedWorlds.length} / 6 places unlocked</span><span class="coin-balance">${icon('coin')} ${state.coins} coins</span></div><div class="world-grid">`;
-   for(const w of WORLDS){const selected=pendingWorld===w.id,owned=state.unlockedWorlds.includes(w.id);content+=`<button class="world-card ${selected?'selected':''} ${!owned?'locked':''}" data-action="select-world" data-id="${w.id}" aria-pressed="${selected}"><div class="world-art">${worldArt(w.id)}<span>${w.tag}</span>${selected?`<i>${icon('check')}</i>`:!owned?`<i>${icon('lock')}</i>`:''}</div><div><h3>${w.name}</h3><p>${w.subtitle}</p><span class="vehicle-status">${selected?'SELECTED':owned?'READY TO EXPLORE':`${icon('coin')} ${w.cost} · UNLOCK`}</span></div></button>`;}
+   for(const w of WORLDS){const owned=state.unlockedWorlds.includes(w.id),pending=pendingWorld===w.id,selected=owned&&pending,shortfall=Math.max(0,w.cost-state.coins);content+=`<button class="world-card ${selected?'selected':''} ${!owned?'locked':''} ${!owned&&pending?'locked-selected':''}" data-action="select-world" data-id="${w.id}" aria-pressed="${selected}"><div class="world-art">${worldArt(w.id)}<span>${w.tag}</span>${selected?`<i>${icon('check')}</i>`:!owned?`<i>${icon('lock')}</i>`:''}</div><div><h3>${w.name}</h3><p>${w.subtitle}</p><span class="vehicle-status ${!owned&&shortfall>0&&pending?'insufficient':''}">${selected?'SELECTED':owned?'READY TO EXPLORE':shortfall>0&&pending?`${shortfall} COINS MORE NEEDED`:`${icon('coin')} ${w.cost} · UNLOCK`}</span></div></button>`;}
    content+='</div>'+selectionFooter('worlds');
  }
  if(kind==='settings'){
    content=modalHeader('MAKE YOURSELF AT HOME','Your kind of play.','The little things that make every climb feel right.');
-   content+=`<div class="settings-list">${settingToggle('music','Background music','An upbeat arcade soundtrack for every climb.','music')}${settingToggle('sound','Sound effects','Hear every crash and landing.','sound')}${settingToggle('haptics','Touch feedback','Feel your timing with gentle vibrations.','target')}${settingToggle('reduceMotion','Reduce motion','Turn off camera shake and slow motion.','layers')}<div class="setting-row"><span class="setting-icon">${icon('sun')}</span><div><strong>Graphics quality</strong><p>Auto adapts to your device. Battery saver reduces shadows.</p></div><select id="quality" aria-label="Graphics quality"><option value="auto" ${state.settings.quality==='auto'?'selected':''}>Auto</option><option value="high" ${state.settings.quality==='high'?'selected':''}>High</option><option value="low" ${state.settings.quality==='low'?'selected':''}>Battery saver</option></select></div></div><div class="settings-note">${icon('info')} Progress is saved on this device.</div><button class="reset-game-button" data-action="reset-game">${icon('refresh')} Reset game</button>`;
+   content+=`<div class="settings-list">${settingToggle('music','Background music','An upbeat arcade soundtrack for every climb.','music')}${settingToggle('sound','Sound effects','Hear every crash and landing.','sound')}${settingToggle('haptics','Touch feedback','Feel your timing with gentle vibrations.','target')}${settingToggle('reduceMotion','Reduce motion','Turn off camera shake and slow motion.','layers')}<div class="setting-row"><span class="setting-icon">${icon('sun')}</span><div><strong>Graphics quality</strong><p>Ultra uses sharper shadows and high resolution. Best on powerful devices.</p></div><select id="quality" aria-label="Graphics quality"><option value="auto" ${state.settings.quality==='auto'?'selected':''}>Auto</option><option value="high" ${state.settings.quality==='high'?'selected':''}>High</option><option value="ultra" ${state.settings.quality==='ultra'?'selected':''}>Ultra</option><option value="low" ${state.settings.quality==='low'?'selected':''}>Battery saver</option></select></div></div><div class="settings-note">${icon('info')} Progress is saved on this device.</div><button class="settings-howto-button" data-action="howto">${icon('info')}<span><strong>How to play</strong><small>Learn the controls and stacking basics.</small></span>${icon('arrow')}</button><button class="reset-game-button" data-action="reset-game">${icon('refresh')} Reset game</button>`;
  }
  if(kind==='leaderboard'){
    content=modalHeader('A LITTLE FRIENDLY COMPETITION','Your best climbs.','Every personal best starts with one good drop.');
@@ -140,7 +151,7 @@ function openDialog(kind:string){
    content=modalHeader('CELEBRATE THE LITTLE THINGS','Milestones worth the climb.',`${state.achievements.length} of ${ACHIEVEMENTS.length} achievements discovered.`);content+='<div class="achievements-grid">';
    for(const a of ACHIEVEMENTS){const earned=state.achievements.includes(a.id);content+=`<div class="achievement-card ${earned?'earned':''}"><span class="achievement-icon">${icon(a.icon)}</span><div><h3>${a.name}</h3><p>${a.description}</p><small>${earned?'UNLOCKED':'KEEP CLIMBING'}</small></div>${earned?icon('check'):icon('lock')}</div>`;}content+='</div>';
  }
- if(kind==='howto')content=modalHeader('SIMPLE TO LEARN. SATISFYING TO MASTER.','Find your rhythm.','The best towers are built one moment at a time.')+`<div class="howto-steps"><div><b>01</b><h3>Watch the ride.</h3><p>Your next vehicle moves above the tower. Wait until it lines up with the vehicle below.</p></div><div><b>02</b><h3>Make the drop.</h3><p>Tap the scene, use the Drop button, or press Space. Gravity takes it from there.</p></div><div><b>03</b><h3>Keep your balance.</h3><p>Center your landing for 3 coins instead of 1. Chain perfects for up to 5× points. Off-center towers can topple.</p></div></div><button class="primary-button wide" data-action="play">Ready when you are ${icon('arrow')}</button>`;
+ if(kind==='howto')content=modalHeader('SIMPLE TO LEARN. SATISFYING TO MASTER.','Find your rhythm.','The best towers are built one moment at a time.')+`<div class="howto-steps"><div><b>01</b><h3>Watch the ride.</h3><p>Your next vehicle moves above the tower. Wait until it lines up with the vehicle below.</p></div><div><b>02</b><h3>Make the drop.</h3><p>Tap the scene or press Space. Gravity takes it from there.</p></div><div><b>03</b><h3>Keep your balance.</h3><p>Center your landing for 3 coins instead of 1. Chain perfects for up to 5× points. Off-center towers can topple.</p></div></div><button class="primary-button wide" data-action="play">Ready when you are ${icon('arrow')}</button>`;
  if(kind==='pause'){
    game?.pause();content=modalHeader('TAKE A BREATH','The view can wait.','Your tower will be right here when you’re ready.')+`<div class="pause-actions"><button class="primary-button wide" data-action="resume">${icon('play')} Keep climbing</button><button class="secondary-button wide" data-action="restart">${icon('refresh')} Start a new run</button><button class="text-button home-button" data-action="end-home">${icon('home')} Back to home</button></div>`;
  }
@@ -151,7 +162,8 @@ function openDialog(kind:string){
 function selectionFooter(kind:'vehicles'|'worlds'){
  const world=kind==='worlds',choice=world?WORLDS.find(w=>w.id===pendingWorld)!:VEHICLES.find(v=>v.id===pendingVehicle)!;
  const owned=world?state.unlockedWorlds.includes(choice.id):state.unlocked.includes(choice.id);
- return `<div class="selection-footer">${owned?'':`<p>Unlock for ${choice.cost} coins when you tap Done.</p>`}<div class="selection-actions"><button class="selection-cancel" data-action="close">Cancel</button><button class="primary-button selection-done" data-action="selection-done">Done</button></div></div>`;
+ const shortfall=Math.max(0,choice.cost-state.coins),canUnlock=owned||shortfall===0;
+ return `<div class="selection-footer"><p id="selection-hint" class="${!owned&&shortfall>0?'selection-error':''}" ${owned?'hidden':''}>${owned?'':shortfall>0?`${shortfall} more coins needed to unlock ${choice.name}.`:`Unlock ${choice.name} when you tap Done.`}</p><div class="selection-actions"><button class="selection-cancel" data-action="close">Cancel</button><button class="primary-button selection-done" data-action="selection-done" ${canUnlock?'':'disabled'}>${owned?'Done':canUnlock?'Unlock & select':`${shortfall} coins needed`}</button></div></div>`;
 }
 function layoutDialog(page=0){
  const focusAction=(document.activeElement as HTMLElement|null)?.dataset.action;
@@ -185,7 +197,7 @@ function resultContent(){const isBest=game&&game.score>0&&game.score>runPrevious
 function closeDialog(resume=true){if(modal.open)modal.close();game?.setOverlayOpen(false);if(resume&&dialogKind==='pause')game?.resume();dialogKind='';dialogPage=0;}
 function saveRun(){if(runRecorded||!game)return;recordRun(state,{score:game.score,stacks:game.stacks,height:game.stacks?game.top:0,world:state.selectedWorld,combo:sessionBestCombo});runRecorded=true;persist();renderState();}
 function handleAction(action:string,id?:string){
- if(!bootReady||interstitials.busy)return;
+ if(!bootReady||interstitials.busy||selectionUpdatePending)return;
  game?.audio.init();game?.audio.click();
  if(action==='play'||action==='restart'){if(document.body.classList.contains('in-game'))saveRun();start();}
  else if(action==='page-prev'||action==='page-next')layoutDialog(dialogPage+(action==='page-next'?1:-1));
@@ -200,12 +212,16 @@ function handleAction(action:string,id?:string){
  else if(action==='selection-done'){
    if(dialogKind==='worlds'){
      const choice=WORLDS.find(w=>w.id===pendingWorld)!;
-     if(!unlockWorld(state,choice.id)){toast(`Earn ${choice.cost-state.coins} more coins to unlock ${choice.name}.`);return;}
-     state.selectedWorld=choice.id;game?.changeWorld(choice.id as WorldId);
+     if(!unlockWorld(state,choice.id)){$('selection-hint').textContent=`You need ${choice.cost-state.coins} more coins to unlock ${choice.name}.`; $('selection-hint').hidden=false;$('selection-hint').classList.add('selection-error');return;}
+     state.selectedWorld=choice.id;persist();renderState();closeDialog();toast(`Loading ${choice.name}…`);
+     // Let the selection close and paint its feedback before constructing a
+     // newly selected procedural world. Returning to a recent world reuses its cache.
+     selectionUpdatePending=true;window.setTimeout(()=>{game?.changeWorld(choice.id as WorldId);selectionUpdatePending=false;},32);return;
    }else{
      const choice=VEHICLES.find(v=>v.id===pendingVehicle)!;
-     if(!unlockVehicle(state,choice.id)){toast(`Earn ${choice.cost-state.coins} more coins to unlock ${choice.name}.`);return;}
-     state.selectedVehicle=choice.id;game?.setVehicles(choice.id,state.unlocked);
+     if(!unlockVehicle(state,choice.id)){$('selection-hint').textContent=`You need ${choice.cost-state.coins} more coins to unlock ${choice.name}.`; $('selection-hint').hidden=false;$('selection-hint').classList.add('selection-error');return;}
+     state.selectedVehicle=choice.id;persist();renderState();closeDialog();toast(`Updating ${choice.name}…`);
+     selectionUpdatePending=true;window.setTimeout(()=>{game?.setVehicles(choice.id,state.unlocked);selectionUpdatePending=false;},32);return;
    }
    persist();renderState();closeDialog();
  }
@@ -231,18 +247,27 @@ document.addEventListener('keydown',e=>{
 });
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&game?.mode==='playing')openDialog('pause');});
 renderState();
+function bootProgress(value:number,message:string){
+ const progress=Math.max(4,Math.min(100,Math.round(value))),bar=$<HTMLElement>('loading-progress'),track=bar.parentElement!;
+ bar.style.width=`${progress}%`;track.setAttribute('aria-valuenow',String(progress));$('loading-percent').textContent=`${progress}%`;$('loading-status').textContent=message;
+}
 // Yield once so the loading screen is visible before initializing WebGL.
 requestAnimationFrame(()=>setTimeout(async()=>{
  try{
-   game=new StackingGame($('game-canvas'));game.configure(state.settings);game.changeWorld(state.selectedWorld as WorldId);game.setVehicles(state.selectedVehicle,state.unlocked);
+   game=new StackingGame($('game-canvas'));game.configure(state.settings);game.changeWorld(state.selectedWorld as WorldId);game.setVehicles(state.selectedVehicle,state.unlocked);game.onBonusSpawn=stackNumber=>toast(`GOLDEN APEX · BONUS VEHICLE ${stackNumber}`);
+   bootProgress(27,'Building the 3D world');
    const audioReady=game.audio.prepare();
    game.onLanding=(r:Landing)=>{
-     state.coins+=r.coins;state.totalStacks++;state.best=Math.max(state.best,r.score);state.bestHeight=Math.max(state.bestHeight,r.height);sessionBestCombo=Math.max(sessionBestCombo,r.combo);if(r.stacks===1)earn('first');if(r.perfect)earn('perfect');if(r.stacks>=10)earn('ten');if(r.combo>=5)earn('combo');if(r.stacks>=20)earn('twenty');persist();
+     state.coins+=r.coins;state.totalStacks++;state.best=Math.max(state.best,r.score);state.bestHeight=Math.max(state.bestHeight,r.height);sessionBestCombo=Math.max(sessionBestCombo,r.combo);
+     if(r.stacks===1)earn('first');if(r.perfect)earn('perfect');if(r.stacks>=10)earn('ten');if(r.combo>=5)earn('combo');if(r.stacks>=20)earn('twenty');
+     if(r.combo>=10)earn('tenCombo');if(r.stacks>=30)earn('thirty');if(r.score>=5000)earn('score5000');if(r.height>=25)earn('height25');if(state.totalStacks>=500)earn('lifetime500');
+     if(r.stacks>=10&&!state.worldTen.includes(state.selectedWorld)){state.worldTen.push(state.selectedWorld);if(state.worldTen.length===6)earn('worldTour');}
+     persist();
      $('score').textContent=r.score.toLocaleString();$('run-coins').textContent=String(game!.coins);$('height').textContent=r.height.toFixed(1);
      $('landing-feedback').innerHTML=r.perfect?`<strong>PERFECT.</strong><span>${r.combo>1?`${Math.min(r.combo,5)}× COMBO · `:''}+${r.coins} ${r.coins===1?'COIN':'COINS'}</span>`:`<strong>NICE LANDING.</strong><span>+40 POINTS · +${r.coins} ${r.coins===1?'COIN':'COINS'}</span>`;
      $('landing-feedback').className=`landing-feedback show ${r.perfect?'perfect':''}`;clearTimeout(feedbackTimer);feedbackTimer=window.setTimeout(()=>$('landing-feedback').classList.remove('show'),1200);haptic(r.perfect);
    };
-   game.onStability=value=>{$('stability-value').textContent=`${value}%`;$('stability-fill').style.width=`${value}%`;$('stability-fill').style.background=value<40?'#d9a36a':'#dbea9f';};
+   game.onStability=value=>{$('stability-value').textContent=`${value}%`;$('stability-fill').style.width=`${value}%`;$('stability-fill').classList.toggle('is-danger',value<40);};
    game.onEnd=()=>{
     saveRun();const adDue=interstitials.recordCompletedGame();
     window.setTimeout(async()=>{
@@ -251,13 +276,17 @@ requestAnimationFrame(()=>setTimeout(async()=>{
      if(game?.mode==='ended'&&!modal.open)openDialog('result');
     },900);
    };
-   thumbs=vehicleThumbnails();await Promise.all([audioReady,game.prepareGraphics()]);renderState();bootReady=true;$('intro').querySelector<HTMLButtonElement>('.play-button')!.disabled=false;$('loading').remove();
+   thumbs=vehicleThumbnails();bootProgress(61,'Polishing vehicles and reflections');
+   await Promise.all([audioReady,game.prepareGraphics()]);bootProgress(84,'Rendering your first scene');
+   await new Promise<void>(resolve=>{const waitForFrame=()=>game?.sceneFrames?resolve():requestAnimationFrame(waitForFrame);waitForFrame();});
+   renderState();bootReady=true;$('intro').querySelector<HTMLButtonElement>('.play-button')!.disabled=false;bootProgress(100,'Ready to play');$('loading').classList.add('loading-complete');window.setTimeout(()=>$('loading')?.remove(),420);
    if(Capacitor.isNativePlatform()){
      void App.addListener('backButton',()=>{if(interstitials.busy)return;if(modal.open){if(dialogKind==='result')home();else closeDialog();}else if(game?.mode==='playing')openDialog('pause');else if(game?.mode==='ended')home();else void App.exitApp();});
      void App.addListener('appStateChange',({isActive})=>{if(!isActive){if(game?.mode==='playing')openDialog('pause');void game?.audio.context?.suspend();}game?.setAppActive(isActive);});
    }
-   interstitials.preload();
+   interstitials.preload();showHomeAd();
    // Expose only a read-only diagnostic snapshot for smoke tests and performance inspection.
    Object.defineProperty(window,'stackline',{value:{snapshot:()=>({ads:interstitials.snapshot,mode:game?.mode,score:game?.score,stacks:game?.stacks,height:game?.top,heldX:game?.held?.position.x,held:!!game?.held,falling:!!game?.falling,sceneVehicles:game?.vehicleCount,vehicleTypes:game?.vehicleTypes,damage:game?.damageSnapshot,glassChips:game?.glassChipCount,topX:game?.items.at(-1)?.body.position.x,stability:game?.stability,groundContact:game?.groundContact,drawCalls:game?.renderer.info.render.calls,triangles:game?.renderer.info.render.triangles,renderFrames:game?.renderFrames,renderPending:game?.renderPending,renderBudget:game?.renderBudget,pixelRatio:game?.renderer.getPixelRatio(),shadows:game?.renderer.shadowMap.enabled,shadowSize:game?.scenery.sun.shadow.mapSize.x,pointLights:game?.scenery.localLights.filter(light=>light.visible).length,adaptiveQualityReduced:game?.adaptiveQualityReduced,vehicle:state.selectedVehicle,world:state.selectedWorld,coins:state.coins,quality:state.settings.quality,musicEnabled:game?.audio.musicEnabled,musicPlaying:game?.audio.musicPlaying,musicLevel:game?.audio.musicLevel,crashPlays:game?.audio.crashPlays,musicReady:game?.audio.musicReady,musicStartDelayMs:game?.audio.musicStartDelayMs,audioState:game?.audio.context?.state,unlocked:[...state.unlocked],unlockedWorlds:[...state.unlockedWorlds],effectsLevel:game?.audio.effectsLevel,lastImpactSpeed:game?.lastImpactSpeed,fps:game?.averageFps,cameraY:game?.camera.position.y,storageKey:'stackline.progress.v1'})},writable:false});
  }catch(error){console.error(error);$('loading').innerHTML=`<div class="webgl-error">${icon('info')}<h3>Your graphics engine needs a hand.</h3><p>Enable WebGL or hardware acceleration in your browser, then reload to play.</p><button class="primary-button" id="reload">Try again</button></div>`;document.getElementById('reload')?.addEventListener('click',()=>location.reload());}
 },0));
+
