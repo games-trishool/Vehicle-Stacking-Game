@@ -190,7 +190,7 @@ export class StackingGame {
       }
     }
   }
-  private spawn(){if(this.mode!=='playing')return;const stackNumber=this.stacks+1,bonus=stackNumber>=10&&stackNumber%10===0;this.heldId=bonus?'gold':this.pick();this.held=createVehicle(this.heldId);this.held.position.set(-3,this.top+3.1,0);this.scene.add(this.held);this.phase=-Math.PI/2;this.elapsed=0;this.settled=0;this.contact=false;
+  private spawn(){if(this.mode!=='playing')return;const stackNumber=this.stacks+1,bonus=stackNumber>=3&&stackNumber%3===0;this.heldId=bonus?'gold':this.pick();this.held=createVehicle(this.heldId);this.held.position.set(-3,this.top+3.1,0);this.scene.add(this.held);this.phase=-Math.PI/2;this.elapsed=0;this.settled=0;this.contact=false;
     if(bonus){this.addBonusAura();this.onBonusSpawn(stackNumber);}
     this.guide=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3(0,-3,0)]),new THREE.LineDashedMaterial({color:0xf1e5ad,transparent:true,opacity:.55,dashSize:.12,gapSize:.13}));this.guide.computeLineDistances();this.scene.add(this.guide);
   }
