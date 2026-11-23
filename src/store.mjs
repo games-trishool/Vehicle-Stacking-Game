@@ -28,12 +28,19 @@ export const ACHIEVEMENTS = [
   {id:'combo',name:'In the flow',description:'Land 5 perfect drops in a row.',icon:'zap'},
   {id:'twenty',name:'Sky is the limit',description:'Stack 20 vehicles in one run.',icon:'mountain'},
   {id:'collector',name:'Keys to the kingdom',description:'Unlock every vehicle.',icon:'key'},
+  {id:'tenCombo',name:'Unbreakable rhythm',description:'Land 10 perfect drops in a row.',icon:'zap'},
+  {id:'thirty',name:'Above the clouds',description:'Stack 30 vehicles in one run.',icon:'mountain'},
+  {id:'score5000',name:'High scorer',description:'Score 5,000 points in one run.',icon:'trophy'},
+  {id:'height25',name:'Touch the sky',description:'Build a tower 25 metres high in one run.',icon:'target'},
+  {id:'lifetime500',name:'Road veteran',description:'Stack 500 vehicles across all runs.',icon:'flag'},
+  {id:'worldTour',name:'World tour',description:'Reach 10 stacks in each of the six worlds.',icon:'tree'},
 ];
+export const WORLD_IDS = WORLDS.map(world=>world.id);
 export const STORAGE_KEY = 'stackline.progress.v1';
 /** @typedef {{score:number,stacks:number,height:number,world:string,combo:number,date:string}} Run */
-/** @typedef {{version:number,coins:number,best:number,bestHeight:number,selectedVehicle:string,selectedWorld:string,unlocked:string[],unlockedWorlds:string[],achievements:string[],runs:Run[],totalStacks:number,settings:{sound:boolean,music:boolean,haptics:boolean,quality:string,reduceMotion:boolean}}} State */
+/** @typedef {{version:number,coins:number,best:number,bestHeight:number,selectedVehicle:string,selectedWorld:string,unlocked:string[],unlockedWorlds:string[],achievements:string[],runs:Run[],totalStacks:number,worldTen:string[],settings:{sound:boolean,music:boolean,haptics:boolean,quality:string,reduceMotion:boolean}}} State */
 /** @returns {State} */
-export function initialState(){return {version:1,coins:0,best:0,bestHeight:0,selectedVehicle:'mixed',selectedWorld:'forest',unlocked:['mixed','car','suv','truck'],unlockedWorlds:['forest','city','space'],achievements:[],runs:[],totalStacks:0,settings:{sound:true,music:true,haptics:true,quality:'auto',reduceMotion:false}};}
+export function initialState(){return {version:1,coins:0,best:0,bestHeight:0,selectedVehicle:'mixed',selectedWorld:'forest',unlocked:['mixed','car','suv','truck'],unlockedWorlds:['forest','city','space'],achievements:[],runs:[],totalStacks:0,worldTen:[],settings:{sound:true,music:true,haptics:true,quality:'ultra',reduceMotion:false}};}
 export function loadState(storage){
   const base=initialState();
   try {
@@ -45,8 +52,9 @@ export function loadState(storage){
     base.unlockedWorlds=[...new Set([...base.unlockedWorlds,...(Array.isArray(raw.unlockedWorlds)?raw.unlockedWorlds.filter(id=>WORLDS.some(w=>w.id===id)):[])])];
     if(base.unlockedWorlds.includes(raw.selectedWorld))base.selectedWorld=raw.selectedWorld;
     base.achievements=Array.isArray(raw.achievements)?raw.achievements.filter(id=>ACHIEVEMENTS.some(a=>a.id===id)):[];
+    base.worldTen=Array.isArray(raw.worldTen)?[...new Set(raw.worldTen.filter(id=>WORLD_IDS.includes(id)))]:[];
     base.runs=Array.isArray(raw.runs)?raw.runs.filter(r=>Number.isFinite(r.score)&&r.score>=0&&Number.isFinite(r.stacks)&&r.stacks>=0&&Number.isFinite(r.height)&&typeof r.date==='string').slice(0,20):[];
-    if(raw.settings){for(const k of ['sound','music','haptics','reduceMotion']) if(typeof raw.settings[k]==='boolean') base.settings[k]=raw.settings[k];if(['auto','high','low'].includes(raw.settings.quality)) base.settings.quality=raw.settings.quality;}
+    if(raw.settings){for(const k of ['sound','music','haptics','reduceMotion']) if(typeof raw.settings[k]==='boolean') base.settings[k]=raw.settings[k];if(['auto','high','ultra','low'].includes(raw.settings.quality)) base.settings.quality=raw.settings.quality;}
   } catch { /* Storage can be unavailable or contain an older save. */ }
   return base;
 }
@@ -58,3 +66,4 @@ export function recordRun(state,run){state.best=Math.max(state.best,run.score);s
 export function unlockWorld(state,id){const world=WORLDS.find(w=>w.id===id);if(!world)return false;if(state.unlockedWorlds.includes(id))return true;if(state.coins<world.cost)return false;state.coins-=world.cost;state.unlockedWorlds.push(id);return true;}
 /** Reset only this game's progress; preserve unrelated browser/app storage. */
 export function resetState(storage,state){Object.assign(state,initialState());return saveState(storage,state);}
+
