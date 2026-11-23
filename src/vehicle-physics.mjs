@@ -1,9 +1,9 @@
 import * as CANNON from 'cannon-es';
-import {SPECS} from './vehicle-specs.mjs';
+import {VEHICLE_SPECS} from './vehicle-specs.mjs';
 
 /** Collision bodies used in play, including all three rickshaw wheels. */
 export function createVehicleBody(id,x,bottom){
- const s=SPECS[id];if(!s)throw new Error(`Unknown vehicle: ${id}`);
+ const s=VEHICLE_SPECS[id];if(!s)throw new Error(`Unknown vehicle: ${id}`);
  const body=new CANNON.Body({mass:s.mass,position:new CANNON.Vec3(x,bottom+s.height/2,0),linearDamping:.25,angularDamping:.7,sleepSpeedLimit:.18,sleepTimeLimit:.7});
  const box=(cx,cy,cz,hx,hy,hz)=>body.addShape(new CANNON.Box(new CANNON.Vec3(hx,hy,hz)),new CANNON.Vec3(cx,cy-s.height/2,cz));
  const wheel=(wx,wz,r)=>body.addShape(new CANNON.Sphere(r),new CANNON.Vec3(wx,r-s.height/2,wz));
@@ -38,3 +38,4 @@ export function createVehicleBody(id,x,bottom){
  }
  return body;
 }
+
