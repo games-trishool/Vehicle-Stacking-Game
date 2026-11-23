@@ -13,3 +13,10 @@ export const SPECS={
  dumptruck:{length:5.5,width:2.22,height:2.6,color:0xd5a52e,mass:16},
  mixer:{length:5.65,width:2.2,height:2.8,color:0xe1e5e2,mass:17},
 };
+// Hidden recurring run reward: appears at each tenth successful stack and is
+// deliberately excluded from the shop catalog and unlock state.
+export const BONUS_SPECS={
+ gold:{length:4.8,width:2.04,height:1.68,color:0xffb20c,mass:8.5},
+};
+export const VEHICLE_SPECS={...SPECS,...BONUS_SPECS};
+
