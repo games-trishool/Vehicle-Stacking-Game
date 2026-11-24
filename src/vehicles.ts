@@ -2,13 +2,13 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import goldenBonusUrl from '../05_rare_golden_bonus_hypercar.glb?url';
+const goldenBonusUrl=new URL('../05_rare_golden_bonus_hypercar.glb',import.meta.url).href;
 
 import {SPECS,VEHICLE_SPECS,BONUS_SPECS} from './vehicle-specs.mjs';
 export {SPECS};
 export type VehicleId=keyof typeof SPECS|keyof typeof BONUS_SPECS;
 const goldenDamageZones={
-  windshield:{center:[.87,1.04,0],right:[0,0,-1],up:[-.32,.95,0],width:1.44,height:.52},
+  windshield:{center:[.76,1.12,0],right:[0,0,-1],up:[-.91,.415,0],width:1.20,height:.76},
   roof:{center:[-.28,1.34,0],halfSize:[1.05,.08,.68]},
   doors:[-1,1].map(side=>({center:[-.02,.79,side*1.02],halfSize:[.83,.31,.045],side})),
 };
@@ -47,6 +47,9 @@ function paintFinish(mat:THREE.MeshPhysicalMaterial){
   // Rich automotive clearcoat and stronger scene reflections make the body
   // read as lacquered paint instead of flat colored plastic.
   mat.roughness=.29;mat.clearcoat=1;mat.clearcoatRoughness=.14;mat.envMapIntensity=1.25;
+  return addPaintGrain(mat);
+}
+function addPaintGrain(mat:THREE.MeshPhysicalMaterial){
   if(!finishGrain){
     const canvas=document.createElement('canvas');canvas.width=canvas.height=512;const c=canvas.getContext('2d')!,pixels=c.createImageData(512,512);let seed=7391;
     for(let i=0;i<pixels.data.length;i+=4){seed=(Math.imul(seed,1664525)+1013904223)|0;const n=205+(seed>>>24)%40;pixels.data[i]=pixels.data[i+1]=pixels.data[i+2]=n;pixels.data[i+3]=255;}
@@ -389,34 +392,29 @@ let goldenVehicleLoad:Promise<void>|undefined;
 export function prepareGoldenBonusVehicle(){
   if(models.has('goldundefined'))return Promise.resolve();
   if(!goldenVehicleLoad)goldenVehicleLoad=new GLTFLoader().loadAsync(goldenBonusUrl).then(gltf=>{
+    const model=new THREE.Group();
+    model.name='gold';
+    model.userData={id:'gold',spec:VEHICLE_SPECS.gold,damageZones:goldenDamageZones};
+    // The asset is already batched by finish. Bake the pack's -Z nose into the
+    // game's +X coordinates so damage edits and collision zones use the same axes.
+    const orient=new THREE.Matrix4().makeRotationY(-Math.PI/2);
     gltf.scene.updateMatrixWorld(true);
-    // The GLB faces -Z; rotate that nose toward the game's +X-facing convention.
-    const orient=new THREE.Matrix4().makeRotationY(-Math.PI/2),batches=new Map<string,{material:THREE.Material;signature:string;parts:THREE.BufferGeometry[]}>();
-    gltf.scene.traverse(object=>{
-      if(!(object instanceof THREE.Mesh))return;
-      const materials=Array.isArray(object.material)?object.material:[object.material];
-      for(let index=0;index<materials.length;index++){
-        const source=materials[index],groups=object.geometry.groups.length?object.geometry.groups:[{start:0,count:object.geometry.getIndex()?.count||object.geometry.getAttribute('position').count,materialIndex:0}];
-        const group=groups.find(part=>part.materialIndex===index);if(!group)continue;
-        let geometry=object.geometry.clone();if(object.geometry.groups.length){geometry.clearGroups();geometry.setDrawRange(group.start,group.count);}
-        if(!geometry.getAttribute('normal'))geometry.computeVertexNormals();
-        const transform=orient.clone().multiply(object.matrixWorld);geometry.applyMatrix4(transform);if(geometry.index)geometry=geometry.toNonIndexed();
-        const signature=Object.keys(geometry.attributes).sort().join(','),key=`${source.uuid}/${signature}`;
-        if(!batches.has(key))batches.set(key,{material:source,signature,parts:[]});batches.get(key)!.parts.push(geometry);
+    gltf.scene.traverse(part=>{
+      if(!(part instanceof THREE.Mesh))return;
+      const surface=part.material as THREE.MeshStandardMaterial;
+      const kind=surface.name.startsWith('Metallic body')?'paint':surface.name.startsWith('Windshield')?'glass':'trim';
+      const geometry=part.geometry.applyMatrix4(orient.clone().multiply(part.matrixWorld));
+      surface.userData.vehicleSurface=kind;
+      if(kind==='paint'&&surface instanceof THREE.MeshPhysicalMaterial){
+        addPaintGrain(surface);
+        surface.envMapIntensity=1.35;
       }
+      const panel=new THREE.Mesh(geometry,surface);
+      panel.userData.surface=kind;
+      panel.castShadow=panel.receiveShadow=true;
+      panel.matrixAutoUpdate=false;
+      model.add(panel);
     });
-    const model=new THREE.Group();model.name='gold';model.userData={id:'gold',spec:VEHICLE_SPECS.gold,damageZones:goldenDamageZones};
-    for(const {material:surface,parts} of batches.values()){
-      const name=surface.name||'';surface.userData.vehicleSurface=/windshield|window glass/i.test(name)?'glass':/metallic body|roof color/i.test(name)?'paint':'trim';
-      const geometry=mergeGeometries(parts);parts.forEach(part=>part.dispose());if(!geometry)continue;
-      if(surface.userData.vehicleSurface==='paint'){
-        surface.vertexColors=true;const positions=geometry.getAttribute('position'),colors=new Float32Array(positions.count*3);
-        for(let i=0;i<positions.count;i++){const dust=1-THREE.MathUtils.smoothstep(positions.getY(i),.35,.88);colors.set([1-dust*.13,1-dust*.16,1-dust*.20],i*3);}geometry.setAttribute('color',new THREE.BufferAttribute(colors,3));
-        if(surface instanceof THREE.MeshStandardMaterial){surface.metalness=Math.max(surface.metalness,.68);surface.roughness=Math.min(surface.roughness,.28);surface.envMapIntensity=1.35;surface.userData.vehicleSurface='paint';}
-      }
-      if(surface instanceof THREE.MeshStandardMaterial&&surface.userData.vehicleSurface==='glass'){surface.transparent=true;surface.opacity=.92;surface.depthWrite=true;surface.envMapIntensity=1.2;}
-      const mesh=new THREE.Mesh(geometry,surface);mesh.castShadow=true;mesh.receiveShadow=true;mesh.matrixAutoUpdate=false;mesh.userData.surface=surface.userData.vehicleSurface;model.add(mesh);
-    }
     models.set('goldundefined',model);
   }).catch(error=>{goldenVehicleLoad=undefined;console.error('Golden Apex model could not be loaded; using the procedural backup.',error);});
   return goldenVehicleLoad;

@@ -9,12 +9,13 @@ import '@fontsource/outfit/latin-800.css';
 import './style.css';
 import './layout.css';
 import { Capacitor } from '@capacitor/core';
+import { allAccessPass,bundles,createShop } from './shop';
 import { App } from '@capacitor/app';
-import { createInterstitials } from './admob';
+import { createInterstitials,nativeRewardAds,watchRewardAd } from './admob';
 import { StackingGame,type Landing } from './game';
 import { icon } from './icons';
 import { showHomeBanner,hideHomeBanner } from './admob';
-import { VEHICLES,WORLDS,ACHIEVEMENTS,loadState,saveState,unlockVehicle,unlockWorld,resetState,recordRun } from './store.mjs';
+import { VEHICLES,WORLDS,ACHIEVEMENTS,loadState,saveState,unlockVehicle,unlockWorld,resetState,recordRun,creditWallet,grantAllAccess } from './store.mjs';
 import { vehicleThumbnails,worldArt } from './thumbnails';
 import type { WorldId } from './scenery';
 
@@ -27,6 +28,9 @@ try{if(storage.getItem('stackline.ultra-visual-upgrade.v1')!=='1'){if(state.sett
 let game:StackingGame|undefined,thumbs:Record<string,string>={},dialogKind='',dialogPage=0,runPreviousBest=state.best,sessionBestCombo=0,runRecorded=false,persistWarned=false,bootReady=false,pendingVehicle=state.selectedVehicle,pendingWorld=state.selectedWorld;
 const app=document.querySelector<HTMLDivElement>('#app')!;
 const interstitials=createInterstitials(storage);
+const localDemoAds=!Capacitor.isNativePlatform()&&['localhost','127.0.0.1','[::1]'].includes(location.hostname);
+const maxRevives=3;
+let revivesUsed=0,adsWatched=0,watchingReward=false,runId='',reviveStatus='';
 interstitials.onBusyChange=busy=>{
  app.inert=busy;game?.setOverlayOpen(busy||modal.open);
  if(busy)void game?.audio.context?.suspend().catch(()=>{});
@@ -36,7 +40,7 @@ app.innerHTML=`
   <header class="header">
     <button class="brand" data-action="home" aria-label="Stack Vechiles home"><span class="brand-mark"><img src="/icons/icon-192.png" alt="" /></span><span class="brand-name">Stack <span>Vechiles</span></span></button>
     <nav class="navigation" aria-label="Main navigation"><button class="nav-link active" data-action="home">The game</button><button class="nav-link" data-action="worlds">Explore worlds</button><button class="nav-link" data-action="garage">Garage</button><button class="nav-link" data-action="leaderboard">Leaderboard</button></nav>
-    <div class="header-actions"><div class="currency-balances"><span class="ruby-balance" aria-label="${state.rubies} rare rubies">${icon('ruby')}<span id="ruby-balance">${state.rubies}</span></span><button class="coin-balance" data-action="garage" aria-label="${state.coins} coins, open garage">${icon('coin')}<span id="coin-balance">${state.coins}</span></button></div><span class="header-divider"></span><button class="icon-button" data-action="settings" aria-label="Settings">${icon('settings')}</button></div>
+    <div class="header-actions"><div class="currency-balances"><span class="ruby-balance" aria-label="${state.rubies} diamonds">${icon('ruby')}<span id="ruby-balance">${state.rubies}</span></span><button class="coin-balance" data-action="garage" aria-label="${state.coins} coins, open garage">${icon('coin')}<span id="coin-balance">${state.coins}</span></button></div><span class="header-divider"></span><button class="icon-button" data-action="settings" aria-label="Settings">${icon('settings')}</button></div>
   </header>
   <main class="home-main">
     <div class="hero" id="hero">
@@ -70,7 +74,7 @@ app.innerHTML=`
       <div class="progress-cards">
         <button class="progress-card record-card" data-action="leaderboard"><span class="card-icon">${icon('trophy')}</span><div><small>PERSONAL BEST</small><strong id="best-score">0<span> pts</span></strong><p>There’s always a little higher.</p></div><span class="card-arrow">${icon('arrow')}</span></button>
         <button class="progress-card" data-action="achievements" aria-label="Achievements"><span class="card-icon">${icon('flag')}</span><div><small>ACHIEVEMENTS</small><strong id="achievement-count">0 <span>/ 12</span></strong><p>Your next milestone is waiting.</p></div><span class="card-arrow">${icon('arrow')}</span></button>
-        <button class="progress-card garage-card" data-action="garage" aria-label="Garage"><div class="garage-preview" id="garage-preview"></div><div><small>GARAGE</small><strong id="next-vehicle">Sport GT</strong><p id="unlock-progress">${state.coins} / 150 coins</p><div class="unlock-track"><i id="unlock-fill"></i></div></div><span class="card-arrow">${icon('arrow')}</span></button>
+        <button class="progress-card shop-card" data-action="shop" aria-label="Open currency shop"><span class="card-icon">${icon('coin')}</span><div><small>COINS &amp; DIAMONDS</small><strong>Shop bundles</strong></div><span class="card-arrow">${icon('arrow')}</span></button>
       </div>
       <aside class="ad-banner-slot" id="ad-banner-preview" aria-label="Test banner advertisement preview">
         <span class="ad-preview-label">TEST AD</span><span class="ad-preview-mark">AD</span>
@@ -98,12 +102,11 @@ function showHomeAd(){
 function renderState(){
  const v=VEHICLES.find(v=>v.id===state.selectedVehicle)!,w=WORLDS.find(w=>w.id===state.selectedWorld)!;
  $('coin-balance').textContent=String(state.coins);$('ruby-balance').textContent=String(state.rubies);$('game-rubies').textContent=String(state.rubies);$('selected-vehicle-name').textContent=v.name;$('selected-world-name').textContent=w.name;
+ $('ruby-balance').parentElement!.setAttribute('aria-label',`${state.rubies} diamonds`);
+ $('coin-balance').parentElement!.setAttribute('aria-label',`${state.coins} coins, open garage`);
  if(thumbs[v.id])$('selection-vehicle-image').innerHTML=`<img src="${thumbs[v.id]}" alt="" />`;
  $('selection-world-image').innerHTML=worldArt(w.id);
  $('best-score').innerHTML=`${state.best.toLocaleString()}<span> pts</span>`;$('achievement-count').innerHTML=`${state.achievements.length} <span>/ ${ACHIEVEMENTS.length}</span>`;
- const next=VEHICLES.find(v=>!state.unlocked.includes(v.id));$('next-vehicle').textContent=next?.name||'Collection complete';$('unlock-progress').textContent=next?`${state.coins} / ${next.cost} coins`:'Every road is yours.';
- $('unlock-fill').style.width=next?`${Math.min(100,state.coins/next.cost*100)}%`:'100%';
- if(thumbs[next?.id||'sports'])$('garage-preview').innerHTML=`<img src="${thumbs[next?.id||'sports']}" alt="" />`;
  const copy=worldNames[w.id];$('scene-kicker').textContent=copy[0];$('scene-world-title').textContent=copy[1];$('scene-world-copy').textContent=copy[2];$('scene-weather').innerHTML=`${icon(w.id==='forest'||w.id==='desert'||w.id==='beach'?'sun':'mountain')} ${w.tag}`;
 }
 function earn(id:string){if(state.achievements.includes(id))return;state.achievements.push(id);const a=ACHIEVEMENTS.find(a=>a.id===id)!;
@@ -113,10 +116,54 @@ function haptic(perfect=false){if(state.settings.haptics&&navigator.vibrate)navi
 function start(){
  if(!game||!bootReady||interstitials.busy)return;void hideHomeBanner().then(()=>document.body.classList.remove('has-home-banner'));interstitials.preload();closeDialog(false);document.body.classList.add('in-game');$('game-hud').hidden=false;
  $('score').textContent='0';$('run-coins').textContent='0';$('height').textContent='0.0';$('landing-feedback').classList.remove('show');$('drop-instruction').classList.remove('hidden');$('stability-value').textContent='100%';$('stability-fill').style.width='100%';
- runPreviousBest=state.best;sessionBestCombo=0;runRecorded=false;game.start();game.resize();
+ runPreviousBest=state.best;sessionBestCombo=0;runRecorded=false;
+ revivesUsed=0;adsWatched=0;reviveStatus='';runId=Date.now().toString(36)+'-'+Math.random().toString(36).slice(2);
+ game.start();game.resize();
 }
-function home(reset=false){if(interstitials.busy)return;closeDialog(false);document.body.classList.remove('in-game');$('game-hud').hidden=true;if(reset)game?.reset();else game?.showHome();game?.resize();renderState();showHomeAd();}
+function home(reset=false){if(interstitials.busy||watchingReward)return;closeDialog(false);document.body.classList.remove('in-game');$('game-hud').hidden=true;if(reset)game?.reset();else game?.showHome();game?.resize();renderState();showHomeAd();}
 function modalHeader(eyebrow:string,title:string,copy:string,showClose=true){return `<div class="modal-heading"><div><span class="eyebrow">${eyebrow}</span><h2>${title}</h2><p>${copy}</p></div>${showClose?`<button class="icon-button close-modal" data-action="close" aria-label="Close dialog">${icon('close')}</button>`:''}</div>`;}
+const shop=createShop((bundle,quantity,token)=>{
+ if('coins' in bundle)creditWallet(storage,state,bundle.coins*quantity,bundle.diamonds*quantity,token);
+ else{
+   grantAllAccess(storage,state);
+   game?.setVehicles(state.selectedVehicle,state.unlocked);
+ }
+
+ renderState();
+},()=>{if(dialogKind==='shop'&&!watchingReward)openDialog('shop');});
+let shopAdStatus:{message:string;claimed:boolean}|undefined;
+function shopContent(){
+ const rewardButton=(id:string,label:string,enabled:boolean)=>`<button class="shop-buy" data-action="shop-buy" data-id="${id}" ${enabled?'':'disabled'}>${label}</button>`;
+ const row=(coins:number,diamonds:number,button:string)=>`<div class="shop-row"><div><strong>${icon('coin')} ${coins.toLocaleString()} coins</strong><span>${icon('ruby')} ${diamonds} ${diamonds===1?'diamond':'diamonds'}</span></div>${button}</div>`;
+ const passPrice=shop.price(allAccessPass.id)??`&#8377;${allAccessPass.inr}`;
+ const pass=`<section class="all-access" aria-labelledby="pass-title">
+   <div class="pass-scene" aria-hidden="true">${worldArt('desert')}${thumbs.sports?`<img src="${thumbs.sports}" alt="">`:''}</div>
+   <div class="pass-copy"><h3 id="pass-title">All Access Pass</h3>
+     <p>Drive all ${VEHICLES.length-1} vehicles across ${WORLDS.length} places.</p>
+     <button class="pass-buy" data-action="shop-buy" data-id="${allAccessPass.id}" ${state.allAccess||!shop.available(allAccessPass.id)?'disabled':''}>
+       ${state.allAccess?icon('check')+' Pass owned':`Unlock pass &middot; ${passPrice}`}</button>
+     ${state.allAccess?'':'<small>One-time purchase</small>'}
+   </div></section>`;
+ return modalHeader('GAME SHOP','Bundles & passes',`Wallet: ${state.coins.toLocaleString()} ${state.coins===1?'coin':'coins'} and ${state.rubies.toLocaleString()} ${state.rubies===1?'diamond':'diamonds'}.`)+
+   '<div class="shop-list" tabindex="0" aria-label="Shop offers">'+row(25,1,rewardButton('ad','Watch ad',nativeRewardAds||localDemoAds))+
+   bundles.map(b=>row(b.coins,b.diamonds,rewardButton(b.id,shop.price(b.id)??`&#8377;${b.inr}`,shop.available(b.id)))).join('')+
+   pass+'</div><p class="shop-note" role="status"></p>';
+}
+async function shopBuy(id:string){
+ if(dialogKind!=='shop')return;
+ shopAdStatus=undefined;
+ if(id!=='ad'){await shop.buy(id);return;}
+ if(watchingReward||(!nativeRewardAds&&!localDemoAds))return;
+ watchingReward=true;
+ try{
+   $('modal-content').innerHTML='<p role="status">Loading rewarded ad...</p>';
+   if(nativeRewardAds?await watchRewardAd():await watchLocalDemo('WALLET REWARD')){
+     creditWallet(storage,state,25,1,undefined);renderState();
+     shopAdStatus={message:'Reward claimed! Added 25 coins and 1 diamond.',claimed:true};
+   }else shopAdStatus={message:'Finish the ad to collect your bundle.',claimed:false};
+ }catch{shopAdStatus={message:'Reward unavailable. Please try again.',claimed:false};}
+ finally{watchingReward=false;openDialog('shop');}
+}
 function openDialog(kind:string){
  if(interstitials.busy)return;
  if(kind!==dialogKind){pendingVehicle=state.selectedVehicle;pendingWorld=state.selectedWorld;}
@@ -147,6 +194,7 @@ function openDialog(kind:string){
    else content+=`<div class="ranking-table"><div class="ranking-heading"><span>RANK / WORLD</span><span>STACKS</span><span>SCORE</span></div>${state.runs.slice(0,10).map((r,i)=>`<div class="ranking-row"><span><b>${String(i+1).padStart(2,'0')}</b><span><strong>${WORLDS.find(w=>w.id===r.world)?.name||'Forest'}</strong><small>${new Date(r.date).toLocaleDateString(undefined,{month:'short',day:'numeric'})} · ${r.height.toFixed(1)} m</small></span></span><span>${r.stacks}</span><strong>${r.score.toLocaleString()}</strong></div>`).join('')}</div>`;
    content+='<p class="modal-footnote">Personal rankings are stored locally. Online rankings are not connected.</p>';
  }
+ if(kind==='shop')content=shopContent();
  if(kind==='achievements'){
    content=modalHeader('CELEBRATE THE LITTLE THINGS','Milestones worth the climb.',`${state.achievements.length} of ${ACHIEVEMENTS.length} achievements discovered.`);content+='<div class="achievements-grid">';
    for(const a of ACHIEVEMENTS){const earned=state.achievements.includes(a.id);content+=`<div class="achievement-card ${earned?'earned':''}"><span class="achievement-icon">${icon(a.icon)}</span><div><h3>${a.name}</h3><p>${a.description}</p><small>${earned?'UNLOCKED':'KEEP CLIMBING'}</small></div>${earned?icon('check'):icon('lock')}</div>`;}content+='</div>';
@@ -157,6 +205,16 @@ function openDialog(kind:string){
  }
  if(kind==='result')content=resultContent();
  $('modal-content').innerHTML=content;modal.className=`modal ${kind==='pause'||kind==='result'?'compact-modal':''}`;modal.dataset.screen=kind;layoutDialog(page);if(!modal.open)modal.showModal();
+ if(kind==='shop'){
+   const notice=shopAdStatus??shop.notice;
+   const note=$('modal-content').querySelector('.shop-note')!;
+   note.textContent=notice.message;
+   note.classList.toggle('reward-claimed',notice.claimed);
+   if(notice.claimed){
+     const offers=$('modal-content').querySelector('.shop-list')!;
+     offers.scrollTop=offers.scrollHeight;
+   }
+ }
  const list=$('modal-content').querySelector('.selection-scroll');if(list)list.scrollTop=scrollTop;
 }
 function selectionFooter(kind:'vehicles'|'worlds'){
@@ -193,13 +251,61 @@ function layoutDialog(page=0){
 let dialogResizeFrame=0;
 window.addEventListener('resize',()=>{cancelAnimationFrame(dialogResizeFrame);dialogResizeFrame=requestAnimationFrame(()=>{if(modal.open)layoutDialog(dialogPage);});});
 function settingToggle(key:'sound'|'music'|'haptics'|'reduceMotion',title:string,copy:string,i:string){return `<div class="setting-row"><span class="setting-icon">${icon(i)}</span><div><strong>${title}</strong><p>${copy}</p></div><button class="toggle ${state.settings[key]?'on':''}" data-action="toggle" data-id="${key}" role="switch" aria-checked="${state.settings[key]}" aria-label="${title}"><i></i></button></div>`;}
-function resultContent(){const isBest=game&&game.score>0&&game.score>runPreviousBest;return modalHeader(isBest?'A NEW PERSONAL BEST':'EVERY DROP IS A NEW BEGINNING',isBest?'That’s a new high.':'What a climb.',isBest?'Take a moment. You’ve earned the view.':'A little higher next time? You’ve got this.')+`<div class="result-trophy">${icon(isBest?'trophy':'layers')}</div><div class="result-score"><small>YOUR SCORE</small><strong>${game?.score.toLocaleString()||0}</strong></div><div class="result-stats"><div><strong>${game?.stacks||0}</strong><span>VEHICLES</span></div><div><strong>${(game?.top||0).toFixed(1)} m</strong><span>HEIGHT</span></div><div><strong>+${game?.coins||0}</strong><span>COINS EARNED</span></div></div><div class="result-actions"><button class="primary-button wide" data-action="play">${icon('refresh')} One more climb ${icon('arrow')}</button><button class="text-button home-button" data-action="home">${icon('home')} Back to home</button></div>`;}
-function closeDialog(resume=true){if(modal.open)modal.close();game?.setOverlayOpen(false);if(resume&&dialogKind==='pause')game?.resume();dialogKind='';dialogPage=0;}
-function saveRun(){if(runRecorded||!game)return;recordRun(state,{score:game.score,stacks:game.stacks,height:game.stacks?game.top:0,world:state.selectedWorld,combo:sessionBestCombo});runRecorded=true;persist();renderState();}
+function reviveButton(){
+ const remaining=revivesUsed+1-adsWatched;
+ const exhausted=revivesUsed>=maxRevives,available=nativeRewardAds||localDemoAds;
+ const label=exhausted?'All 3 revives used':!available?'Ads available on Android':
+   remaining===1?'Watch ad':`Watch ${remaining} ads`;
+ return `<button class="primary-button wide revive-button" data-action="revive" ${exhausted||!available?'disabled':''}>${icon('play')} Revive <small>${label}</small></button>${reviveStatus?`<p class="revive-status" role="status">${reviveStatus}</p>`:''}`;
+}
+
+function watchLocalDemo(label=`${adsWatched+1} OF ${revivesUsed+1}`){
+ const content=$('modal-content');
+ content.innerHTML=`<div class="revive-demo"><span class="eyebrow">DEMO AD &middot; ${label}</span><img src="/icons/icon-192.png" alt=""><h2>Stack Vechiles</h2><p>Build your tower. Beat your best.</p><button class="secondary-button wide" id="skip-demo">Skip ad</button><small id="demo-time"></small></div>`;
+ return new Promise<boolean>(resolve=>{
+   let remaining=4000,last=performance.now();
+   const clock=$('demo-time');
+   const tick=()=>{
+     const now=performance.now();
+     if(!document.hidden)remaining-=Math.min(now-last,250);
+     last=now;clock.textContent=`Reward in ${Math.max(0,Math.ceil(remaining/1000))}s`;
+     if(remaining<=0){clearInterval(timer);resolve(true);}
+   };
+   const timer=window.setInterval(tick,100);tick();
+   $('skip-demo').onclick=()=>{clearInterval(timer);resolve(false);};
+ });
+}
+
+async function attemptRevive(){
+ if(watchingReward||dialogKind!=='result'||game?.mode!=='ended'||revivesUsed>=maxRevives||(!nativeRewardAds&&!localDemoAds))return;
+ watchingReward=true;
+ try{
+   $('modal-content').innerHTML='<p role="status" class="revive-status">Loading rewarded ad...</p>';
+   const earned=nativeRewardAds?await watchRewardAd():await watchLocalDemo();
+   if(earned)adsWatched++;
+   if(adsWatched===revivesUsed+1&&game.revive()){
+     revivesUsed++;adsWatched=0;reviveStatus='';runRecorded=false;
+     $('height').textContent=game.top.toFixed(1);$('landing-feedback').classList.remove('show');
+     closeDialog(false);return;
+   }
+   reviveStatus=earned?`${adsWatched} of ${revivesUsed+1} ads complete. Watch the next ad to continue.`:'Finish the ad to earn revive credit.';
+ }catch{
+   reviveStatus='Ad unavailable. Try again in a moment.';
+ }finally{
+   watchingReward=false;
+   if(dialogKind==='result')openDialog('result');
+ }
+}
+function resultContent(){const isBest=game&&game.score>0&&game.score>runPreviousBest;return modalHeader(isBest?'A NEW PERSONAL BEST':'EVERY DROP IS A NEW BEGINNING',isBest?'That’s a new high.':'What a climb.',isBest?'Take a moment. You’ve earned the view.':'A little higher next time? You’ve got this.')+`<div class="result-trophy">${icon(isBest?'trophy':'layers')}</div><div class="result-score"><small>YOUR SCORE</small><strong>${game?.score.toLocaleString()||0}</strong></div><div class="result-stats"><div><strong>${game?.stacks||0}</strong><span>VEHICLES</span></div><div><strong>${(game?.top||0).toFixed(1)} m</strong><span>HEIGHT</span></div><div><strong>+${game?.coins||0}</strong><span>COINS EARNED</span></div></div><div class="result-actions">${reviveButton()}<button class="secondary-button wide" data-action="play">${icon('refresh')} One more climb ${icon('arrow')}</button><button class="text-button home-button" data-action="home">${icon('home')} Back to home</button></div>`;}
+function closeDialog(resume=true){if(watchingReward)return;if(modal.open)modal.close();game?.setOverlayOpen(false);if(resume&&dialogKind==='pause')game?.resume();dialogKind='';dialogPage=0;}
+function saveRun(){if(runRecorded||!game)return;recordRun(state,{runId,score:game.score,stacks:game.stacks,height:game.stacks?game.top:0,world:state.selectedWorld,combo:sessionBestCombo});runRecorded=true;persist();renderState();}
 function handleAction(action:string,id?:string){
- if(!bootReady||interstitials.busy||selectionUpdatePending)return;
+ if(!bootReady||watchingReward||interstitials.busy||selectionUpdatePending)return;
  game?.audio.init();game?.audio.click();
  if(action==='play'||action==='restart'){if(document.body.classList.contains('in-game'))saveRun();start();}
+ else if(action==='shop'){shopAdStatus=undefined;openDialog('shop');}
+ else if(action==='shop-buy'&&id)void shopBuy(id);
+ else if(action==='revive')void attemptRevive();
  else if(action==='page-prev'||action==='page-next')layoutDialog(dialogPage+(action==='page-next'?1:-1));
  else if(action==='home')home();
  else if(['vehicles','worlds','garage','leaderboard','settings','achievements','howto','pause'].includes(action))openDialog(action);
@@ -264,12 +370,12 @@ requestAnimationFrame(()=>setTimeout(async()=>{
      if(r.stacks>=10&&!state.worldTen.includes(state.selectedWorld)){state.worldTen.push(state.selectedWorld);if(state.worldTen.length===6)earn('worldTour');}
      persist();
      $('score').textContent=r.score.toLocaleString();$('run-coins').textContent=String(game!.coins);$('ruby-balance').textContent=String(state.rubies);$('game-rubies').textContent=String(state.rubies);$('height').textContent=r.height.toFixed(1);
-     $('landing-feedback').innerHTML=r.bonusRuby?`<strong>GOLDEN BONUS!</strong><span>+${r.coins} COINS · +1 RARE RUBY</span>`:r.perfect?`<strong>PERFECT.</strong><span>${r.combo>1?`${Math.min(r.combo,5)}× COMBO · `:''}+${r.coins} ${r.coins===1?'COIN':'COINS'}</span>`:`<strong>NICE LANDING.</strong><span>+40 POINTS · +${r.coins} ${r.coins===1?'COIN':'COINS'}</span>`;
+     $('landing-feedback').innerHTML=r.bonusRuby?`<strong>GOLDEN BONUS!</strong><span>+${r.coins} COINS · +1 DIAMOND</span>`:r.perfect?`<strong>PERFECT.</strong><span>${r.combo>1?`${Math.min(r.combo,5)}× COMBO · `:''}+${r.coins} ${r.coins===1?'COIN':'COINS'}</span>`:`<strong>NICE LANDING.</strong><span>+40 POINTS · +${r.coins} ${r.coins===1?'COIN':'COINS'}</span>`;
      $('landing-feedback').className=`landing-feedback show ${r.perfect?'perfect':''}`;clearTimeout(feedbackTimer);feedbackTimer=window.setTimeout(()=>$('landing-feedback').classList.remove('show'),1200);haptic(r.perfect);
    };
    game.onStability=value=>{$('stability-value').textContent=`${value}%`;$('stability-fill').style.width=`${value}%`;$('stability-fill').classList.toggle('is-danger',value<40);};
    game.onEnd=()=>{
-    saveRun();const adDue=interstitials.recordCompletedGame();
+    saveRun();const adDue=revivesUsed===0&&interstitials.recordCompletedGame();
     window.setTimeout(async()=>{
      if(game?.mode!=='ended'||modal.open)return;
      await interstitials.showAtBreak(adDue,()=>game?.mode==='ended'&&!modal.open&&!document.hidden);
@@ -279,7 +385,7 @@ requestAnimationFrame(()=>setTimeout(async()=>{
    thumbs=vehicleThumbnails();bootProgress(61,'Polishing vehicles and reflections');
    await Promise.all([audioReady,game.prepareGraphics()]);bootProgress(84,'Rendering your first scene');
    await new Promise<void>(resolve=>{const waitForFrame=()=>game?.sceneFrames?resolve():requestAnimationFrame(waitForFrame);waitForFrame();});
-   renderState();bootReady=true;$('intro').querySelector<HTMLButtonElement>('.play-button')!.disabled=false;bootProgress(100,'Ready to play');$('loading').classList.add('loading-complete');window.setTimeout(()=>$('loading')?.remove(),420);
+   shop.start();renderState();bootReady=true;$('intro').querySelector<HTMLButtonElement>('.play-button')!.disabled=false;bootProgress(100,'Ready to play');$('loading').classList.add('loading-complete');window.setTimeout(()=>$('loading')?.remove(),420);
    if(Capacitor.isNativePlatform()){
      void App.addListener('backButton',()=>{if(interstitials.busy)return;if(modal.open){if(dialogKind==='result')home();else closeDialog();}else if(game?.mode==='playing')openDialog('pause');else if(game?.mode==='ended')home();else void App.exitApp();});
      void App.addListener('appStateChange',({isActive})=>{if(!isActive){if(game?.mode==='playing')openDialog('pause');void game?.audio.context?.suspend();}game?.setAppActive(isActive);});

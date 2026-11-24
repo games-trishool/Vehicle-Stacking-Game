@@ -77,11 +77,11 @@ test('actual physics rewards centered drops, records a failed run and replays cl
  await page.screenshot({path:'test-results/leaderboard.png'});
 });
 test('garage purchases use real saved coins and reject insufficient balance',async({page})=>{
- await ready(page);await page.locator('.garage-card').click();
- await choose(page,'sports');await page.getByRole('button',{name:'Done',exact:true}).click();await expect(page.locator('#toast')).toContainText('150 more coins');expect((await snapshot(page)).coins).toBe(0);
+ await ready(page);await page.locator('.coin-balance[data-action="garage"]').click();
+ await choose(page,'sports');await expect(page.locator('.selection-done')).toBeDisabled();await expect(page.locator('#selection-hint')).toContainText('150 more coins');expect((await snapshot(page)).coins).toBe(0);
  await page.locator('[data-action="close"]').click();
  await page.evaluate(()=>{const key='stackline.progress.v1',s=JSON.parse(localStorage.getItem(key)!);s.coins=200;localStorage.setItem(key,JSON.stringify(s));});
- await page.reload();await page.waitForFunction(()=>!!(window as any).stackline);await page.locator('.garage-card').click();await choose(page,'sports');await page.getByRole('button',{name:'Done',exact:true}).click();
+ await page.reload();await page.waitForFunction(()=>!!(window as any).stackline);await page.locator('.coin-balance[data-action="garage"]').click();await choose(page,'sports');await page.getByRole('button',{name:'Unlock & select',exact:true}).click();
  expect((await snapshot(page)).coins).toBe(50);expect((await snapshot(page)).vehicle).toBe('sports');await page.reload();await page.waitForFunction(()=>!!(window as any).stackline);expect((await snapshot(page)).vehicle).toBe('sports');expect((await snapshot(page)).coins).toBe(50);
 });
 test('pause restart and home remove a vehicle still falling in the previous run',async({page})=>{
@@ -180,7 +180,7 @@ test('home stays fixed, vehicle and place lists swipe vertically, and every coll
  for(const size of [{width:320,height:480},{width:320,height:568},{width:390,height:844},{width:844,height:390}]){
   await page.setViewportSize(size);
   for(const [action,cardSelector,total] of [['vehicles','.vehicle-card',VEHICLES.length],['worlds','.world-card',6],['garage','.vehicle-card',VEHICLES.length],['achievements','.achievement-card',6],['leaderboard','.ranking-row',10],['settings','',0],['howto','',0]] as const){
-   const opener=action==='vehicles'?'[aria-label="Change vehicle"]':action==='worlds'?'[aria-label="Change place"]':action==='garage'?'.garage-card':action==='leaderboard'?'.record-card':`[data-action="${action}"]:visible`;
+   const opener=action==='vehicles'?'[aria-label="Change vehicle"]':action==='worlds'?'[aria-label="Change place"]':action==='garage'?'.coin-balance[data-action="garage"]':action==='leaderboard'?'.record-card':`[data-action="${action}"]:visible`;
    await page.locator(opener).first().tap();await expectFits(page,'#modal');
    if(action==='vehicles'&&size.width===390)await page.screenshot({path:'test-results/mobile-vehicle-pages.png'});
    if(action==='garage'&&size.width===390)await page.screenshot({path:'test-results/mobile-garage.png'});
@@ -280,4 +280,63 @@ test('Done commits selections and purchases; closing cancels; reset needs confir
  const fresh=await page.evaluate(()=>JSON.parse(localStorage.getItem('stackline.progress.v1')!));
  expect(fresh).toMatchObject({coins:0,best:0,bestHeight:0,totalStacks:0,achievements:[],runs:[],settings:{music:true,sound:true,haptics:true,reduceMotion:false,quality:'ultra'}});
  await page.reload();await page.waitForFunction(()=>!!(window as any).stackline);expect(await snapshot(page)).toMatchObject({coins:0,vehicle:'mixed',world:'forest',unlockedWorlds:['forest','city','space']});
+});
+
+test('rewarded revives restack the same run and stop after the third revive',async({page})=>{
+ test.setTimeout(420_000);
+ await page.setViewportSize({width:360,height:520});
+ await page.addInitScript(()=>localStorage.setItem('stackline.progress.v1',JSON.stringify({
+   version:1,selectedVehicle:'car',selectedWorld:'space',settings:{quality:'low',sound:false,music:false}
+ })));
+ await ready(page);await page.locator('.play-button').click();
+ async function drop(centered:boolean){
+   await page.waitForFunction(center=>{
+     const s=(window as any).stackline.snapshot(),distance=Math.abs(s.heldX-s.topX);
+     if(s.held&&(center?distance<.12:distance>3.2)){
+       document.dispatchEvent(new KeyboardEvent('keydown',{code:'Space',bubbles:true}));return true;
+     }
+     return false;
+   },centered,{polling:'raf',timeout:65000});
+ }
+ await drop(true);
+ await page.waitForFunction(()=>(window as any).stackline.snapshot().stacks===1);
+ const original=await snapshot(page);
+ const revive=page.locator('[data-action="revive"]');
+ for(let cost=1;cost<=3;cost++){
+   await drop(false);
+   await expect(revive).toBeEnabled({timeout:60000});
+   await expect(revive).toContainText(cost===1?'Watch ad':`Watch ${cost} ads`);
+   if(cost===1){
+     await revive.click();await page.getByRole('button',{name:'Skip ad'}).click();
+     await expect(revive).toBeEnabled();expect((await snapshot(page)).mode).toBe('ended');
+   }
+   for(let watched=0;watched<cost;watched++){
+     await revive.click();await expect(page.locator('.revive-demo')).toBeVisible();
+     if(watched+1<cost)await expect(page.getByRole('status').filter({hasText:'ads complete'})).toBeVisible();
+   }
+   await expect(page.locator('#modal')).not.toBeVisible();
+   expect(await snapshot(page)).toMatchObject({mode:'playing',stacks:1,score:original.score,coins:original.coins,topX:0,groundContact:false,held:true});
+ }
+ await drop(false);await expect(revive).toBeVisible({timeout:60000});await expect(revive).toBeDisabled();
+ expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('stackline.progress.v1')!).runs.length)).toBe(1);
+ await page.getByRole('button',{name:'One more climb'}).click();
+ await drop(false);await expect(revive).toBeEnabled({timeout:60000});await expect(revive).toContainText('Watch ad');
+});
+
+test('currency shop shows all bundles and saves only completed ad rewards',async({page})=>{
+ await page.setViewportSize({width:360,height:640});
+ await ready(page);await page.getByRole('button',{name:'Open currency shop'}).click();
+ await expect(page.locator('.shop-row')).toHaveCount(5);
+ await expect(page.locator('.shop-buy:disabled')).toHaveCount(4);
+ await page.getByRole('button',{name:'Watch ad'}).click();await page.locator('#skip-demo').click();
+ await expect(page.locator('.shop-note')).toContainText('Finish the ad');
+ await page.getByRole('button',{name:'Watch ad'}).click();
+ await expect(page.locator('.shop-note.reward-claimed')).toHaveText('Reward claimed! Added 25 coins and 1 diamond.');
+ expect(await page.evaluate(()=>{const s=JSON.parse(localStorage.getItem('stackline.progress.v1')!);return [s.coins,s.rubies];})).toEqual([25,1]);
+ const pass=page.locator('.all-access');
+ await pass.scrollIntoViewIfNeeded();
+ await expect(pass).toContainText('Drive all 12 vehicles across 6 places');
+ await expect(pass.locator('button')).toContainText('699');
+ await expect(pass.locator('button')).toBeDisabled();
+ await page.screenshot({path:'test-results/currency-shop.png'});
 });

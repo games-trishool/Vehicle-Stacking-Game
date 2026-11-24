@@ -53,14 +53,14 @@
   },
   {
     "file": "05_rare_golden_bonus_hypercar.glb",
-    "triangles": 8104,
-    "size_kb": 174,
+    "triangles": 61788,
+    "size_kb": 1671,
     "bounding_box_meters": [
-      2.338,
-      1.383,
-      4.745
+      2.318,
+      1.342,
+      4.688
     ],
-    "parts": 226,
+    "parts": 10,
     "kind": "hyper",
     "bonus": true
   }

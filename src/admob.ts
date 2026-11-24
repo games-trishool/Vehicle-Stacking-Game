@@ -1,5 +1,5 @@
 import { Capacitor } from '@capacitor/core';
-import { AdMob,InterstitialAdPluginEvents,BannerAdPosition,BannerAdSize } from '@capacitor-community/admob';
+import { AdMob,RewardAdPluginEvents,InterstitialAdPluginEvents,BannerAdPosition,BannerAdSize } from '@capacitor-community/admob';
 import { Interstitials,NativeInterstitialPort,type NativeInterstitialAPI } from './interstitials';
 
 // Google's Android demo interstitial: always test ads, never revenue ads.
@@ -26,4 +26,25 @@ export async function showHomeBanner(){
 export async function hideHomeBanner(){
  if(!bannerVisible)return;
  try{await AdMob.hideBanner();}catch(error){console.warn('Banner ad could not be hidden.',error);}finally{bannerVisible=false;}
+}
+
+export const nativeRewardAds=Capacitor.getPlatform()==='android'&&Capacitor.isPluginAvailable('AdMob');
+
+/** Grant credit after both the earned-reward event and dismissal. */
+export async function watchRewardAd(){
+ const listeners:{remove():Promise<void>}[]=[];
+ try{
+  await AdMob.initialize({initializeForTesting:true});
+  await AdMob.prepareRewardVideoAd({adId:'ca-app-pub-3940256099942544/5224354917',isTesting:true,npa:true});
+  let earned=false;
+  let finish!:(rewarded:boolean)=>void;
+  const dismissed=new Promise<boolean>(resolve=>{finish=resolve;});
+  listeners.push(await AdMob.addListener(RewardAdPluginEvents.Rewarded,()=>{earned=true;}));
+  listeners.push(await AdMob.addListener(RewardAdPluginEvents.Dismissed,()=>finish(earned)));
+  listeners.push(await AdMob.addListener(RewardAdPluginEvents.FailedToShow,()=>finish(false)));
+  void AdMob.showRewardVideoAd().catch(()=>finish(false));
+  return await dismissed;
+ }finally{
+  await Promise.allSettled(listeners.map(listener=>listener.remove()));
+ }
 }

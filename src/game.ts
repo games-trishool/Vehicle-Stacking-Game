@@ -158,6 +158,18 @@ export class StackingGame {
   }
   start(){
     this.clear();this.mode='playing';this.showroomLights.forEach(light=>light.visible=false);this.score=0;this.stacks=0;this.combo=0;this.coins=0;this.top=.49;this.stability=100;this.phase=0;this.lookY=2.2;this.audio.startMusic(true);
+    this.buildTower([this.pick()]);
+  }
+  revive(){
+    if(this.mode!=='ended')return false;
+    const landed=this.items.map(item=>item.id);
+    this.clear();
+    this.mode='playing';this.stability=100;this.combo=0;
+    this.buildTower(landed);
+    this.audio.startMusic();
+    return true;
+  }
+  private buildTower(vehicles:VehicleId[]){
     this.world=new CANNON.World({gravity:new CANNON.Vec3(0,-12,0)});this.world.broadphase=new CANNON.SAPBroadphase(this.world);this.world.allowSleep=true;
     (this.world.solver as CANNON.GSSolver).iterations=12;this.world.defaultContactMaterial.friction=.65;this.world.defaultContactMaterial.restitution=.045;
     const floor=new CANNON.Body({mass:0,shape:new CANNON.Box(new CANNON.Vec3(4.1,.3,4.1)),position:new CANNON.Vec3(0,.19,0)});this.world.addBody(floor);
@@ -165,8 +177,18 @@ export class StackingGame {
     watchSurfaceContacts(this.world,[floor,ground],()=>{
       if(this.mode==='playing'){this.groundContact=true;this.end();}
     });
-    // A base vehicle gives every run an approachable first landing.
-    const base=this.makeItem(this.pick(),0,.49);base.body.type=CANNON.Body.STATIC;base.body.mass=0;base.body.updateMassProperties();this.world.addBody(base.body);this.items.push(base);this.scene.add(base.mesh);this.top=.49+base.height;this.spawn();this.onStability(100);this.last=performance.now();this.performanceFrames=0;this.performanceTime=0;this.invalidate();
+    this.top=.49;
+    for(const [index,id] of vehicles.entries()){
+      const item=this.makeItem(id,0,this.top);
+      if(index===0){
+        item.body.type=CANNON.Body.STATIC;item.body.mass=0;item.body.updateMassProperties();
+      }else{
+        item.body.sleep();
+      }
+      this.world.addBody(item.body);this.scene.add(item.mesh);this.items.push(item);
+      this.top+=item.height;
+    }
+    this.spawn();this.onStability(100);this.last=performance.now();this.performanceFrames=0;this.performanceTime=0;this.invalidate();
   }
   private makeItem(id:VehicleId,x:number,bottom:number):Item{
     const spec=VEHICLE_SPECS[id],body=createVehicleBody(id,x,bottom);

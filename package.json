@@ -20,6 +20,7 @@
     "@fontsource/dm-sans": "^5.2.8",
     "@fontsource/outfit": "^5.2.8",
     "cannon-es": "^0.20.0",
+    "cordova-plugin-purchase": "13.20.0",
     "three": "^0.180.0"
   },
   "devDependencies": {
