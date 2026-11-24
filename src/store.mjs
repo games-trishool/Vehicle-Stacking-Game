@@ -3,23 +3,23 @@ export const VEHICLES = [
   {id:'car', name:'Classic coupe', subtitle:'Every great tower starts here', cost:0, color:'#d8ad54', label:'THE ORIGINAL'},
   {id:'suv', name:'Trail SUV', subtitle:'Built for the great outdoors', cost:0, color:'#758b6f', label:'ADVENTURE READY'},
   {id:'truck', name:'Pickup truck', subtitle:'A little more muscle', cost:0, color:'#c57854', label:'HEAVY DUTY'},
-  {id:'sports', name:'Sport GT', subtitle:'Low, fast, perfectly balanced', cost:150, color:'#c95049', label:'PRECISION'},
-  {id:'rickshaw', name:'Auto rickshaw', subtitle:'Three wheels. Endless character.', cost:200, color:'#d8af28', label:'CITY FAVORITE'},
-  {id:'bus', name:'City bus', subtitle:'Make room for big ambitions', cost:250, color:'#dbc062', label:'BIG ENERGY'},
-  {id:'tractor', name:'Field tractor', subtitle:'A whole new kind of horsepower', cost:350, color:'#64997e', label:'COUNTRY CLASSIC'},
-  {id:'ambulance', name:'Ambulance', subtitle:'A lifesaver for your next climb', cost:400, color:'#e9ece9', label:'FIRST RESPONSE'},
-  {id:'police', name:'Police car', subtitle:'Keep your tower under control', cost:450, color:'#e3e7e9', label:'ON PATROL'},
-  {id:'fireengine', name:'Fire engine', subtitle:'Big rescue. Bigger ambitions.', cost:500, color:'#b51d25', label:'RESCUE CREW'},
-  {id:'dumptruck', name:'Dump truck', subtitle:'Build a tower with serious muscle', cost:550, color:'#d5a52e', label:'HEAVY HAULER'},
-  {id:'mixer', name:'Cement mixer', subtitle:'Mix things up on the way to the top', cost:600, color:'#c16c27', label:'SOLID FOUNDATIONS'},
+  {id:'sports', name:'Sport GT', subtitle:'Low, fast, perfectly balanced', cost:250, diamonds:20, color:'#c95049', label:'PRECISION'},
+  {id:'rickshaw', name:'Auto rickshaw', subtitle:'Three wheels. Endless character.', cost:500, diamonds:25, color:'#d8af28', label:'CITY FAVORITE'},
+  {id:'bus', name:'City bus', subtitle:'Make room for big ambitions', cost:900, diamonds:30, color:'#dbc062', label:'BIG ENERGY'},
+  {id:'tractor', name:'Field tractor', subtitle:'A whole new kind of horsepower', cost:1500, diamonds:35, color:'#64997e', label:'COUNTRY CLASSIC'},
+  {id:'ambulance', name:'Ambulance', subtitle:'A lifesaver for your next climb', cost:2300, diamonds:40, color:'#e9ece9', label:'FIRST RESPONSE'},
+  {id:'police', name:'Police car', subtitle:'Keep your tower under control', cost:3500, diamonds:50, color:'#e3e7e9', label:'ON PATROL'},
+  {id:'fireengine', name:'Fire engine', subtitle:'Big rescue. Bigger ambitions.', cost:5000, diamonds:60, color:'#b51d25', label:'RESCUE CREW'},
+  {id:'dumptruck', name:'Dump truck', subtitle:'Build a tower with serious muscle', cost:7000, diamonds:70, color:'#d5a52e', label:'HEAVY HAULER'},
+  {id:'mixer', name:'Cement mixer', subtitle:'Mix things up on the way to the top', cost:10000, diamonds:80, color:'#c16c27', label:'SOLID FOUNDATIONS'},
 ];
 export const WORLDS = [
   {id:'forest',cost:0,name:'Realistic Forest',subtitle:'Golden light. Endless possibilities.',tone:'#718b5b',tag:'GOLDEN HOUR'},
   {id:'city',cost:0,name:'Night City',subtitle:'Find your rhythm under neon lights.',tone:'#6d608e',tag:'AFTER HOURS'},
   {id:'space',cost:0,name:'Outer Space',subtitle:'Take your ambition out of this world.',tone:'#5262a2',tag:'ZERO LIMITS'},
-  {id:'snow',cost:150,name:'Snow Mountains',subtitle:'Fresh air. A higher perspective.',tone:'#8eaeb8',tag:'ALPINE ESCAPE'},
-  {id:'desert',cost:250,name:'Desert',subtitle:'Chase the sun beyond the dunes.',tone:'#cd9c65',tag:'DESERT DREAMING'},
-  {id:'beach',cost:350,name:'Beach',subtitle:'Good tides. Great heights.',tone:'#67aba7',tag:'COASTAL CALM'},
+  {id:'snow',cost:400,diamonds:20,name:'Snow Mountains',subtitle:'Fresh air. A higher perspective.',tone:'#8eaeb8',tag:'ALPINE ESCAPE'},
+  {id:'desert',cost:2000,diamonds:40,name:'Desert',subtitle:'Chase the sun beyond the dunes.',tone:'#cd9c65',tag:'DESERT DREAMING'},
+  {id:'beach',cost:5000,diamonds:60,name:'Beach',subtitle:'Good tides. Great heights.',tone:'#67aba7',tag:'COASTAL CALM'},
 ];
 export const ACHIEVEMENTS = [
   {id:'first',name:'First ascent',description:'Stack your first vehicle.',icon:'flag'},
@@ -62,10 +62,10 @@ export function loadState(storage){
 }
 export function saveState(storage,state){try{storage.setItem(STORAGE_KEY,JSON.stringify(state));return true;}catch{return false;}}
 export function landingReward(perfect,combo){return {points:perfect?100*Math.min(combo,5):40,coins:perfect?3:1};}
-export function unlockVehicle(state,id){const v=VEHICLES.find(v=>v.id===id);if(!v)return false;if(state.unlocked.includes(id))return true;if(state.coins<v.cost)return false;state.coins-=v.cost;state.unlocked.push(id);if(VEHICLES.every(v=>state.unlocked.includes(v.id))&&!state.achievements.includes('collector'))state.achievements.push('collector');return true;}
+export function unlockVehicle(state,id){const v=VEHICLES.find(v=>v.id===id);if(!v)return false;if(state.unlocked.includes(id))return true;if(state.coins<v.cost||state.rubies<(v.diamonds||0))return false;state.coins-=v.cost;state.rubies-=v.diamonds||0;state.unlocked.push(id);if(VEHICLES.every(v=>state.unlocked.includes(v.id))&&!state.achievements.includes('collector'))state.achievements.push('collector');return true;}
 export function recordRun(state,run){state.best=Math.max(state.best,run.score);state.bestHeight=Math.max(state.bestHeight,run.height);state.runs=[{...run,date:new Date().toISOString()},...state.runs.filter(previous=>!run.runId||previous.runId!==run.runId)].sort((a,b)=>b.score-a.score).slice(0,20);}
 
-export function unlockWorld(state,id){const world=WORLDS.find(w=>w.id===id);if(!world)return false;if(state.unlockedWorlds.includes(id))return true;if(state.coins<world.cost)return false;state.coins-=world.cost;state.unlockedWorlds.push(id);return true;}
+export function unlockWorld(state,id){const world=WORLDS.find(w=>w.id===id);if(!world)return false;if(state.unlockedWorlds.includes(id))return true;if(state.coins<world.cost||state.rubies<(world.diamonds||0))return false;state.coins-=world.cost;state.rubies-=world.diamonds||0;state.unlockedWorlds.push(id);return true;}
 /** Reset only this game's progress; preserve unrelated browser/app storage. */
 export function resetState(storage,state){const fresh=initialState();if(state.allAccess)applyAllAccess(fresh);Object.assign(state,fresh,{paidTokens:state.paidTokens});return saveState(storage,state);}
 

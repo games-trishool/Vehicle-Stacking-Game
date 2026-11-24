@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { createVehicle,SPECS,type VehicleId } from './vehicles';
 export function vehicleThumbnails(){
- const result:Record<string,string>={},renderer=new THREE.WebGLRenderer({alpha:true,antialias:true});renderer.setSize(340,190);renderer.setPixelRatio(1);renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.2;renderer.outputColorSpace=THREE.SRGBColorSpace;
+ const result:Record<string,string>={},renderer=new THREE.WebGLRenderer({alpha:true,antialias:true});renderer.setSize(340,190);renderer.setPixelRatio(Math.min(1.5,devicePixelRatio));renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1;renderer.outputColorSpace=THREE.SRGBColorSpace;
  const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(33,340/190,.1,100);camera.position.set(7,4.2,7);camera.lookAt(0,1,0);
  const room=new RoomEnvironment(),pmrem=new THREE.PMREMGenerator(renderer),target=pmrem.fromScene(room,.04);scene.environment=target.texture;
  scene.add(new THREE.HemisphereLight(0xfff5dd,0x69796b,3));const sun=new THREE.DirectionalLight(0xfff6e6,3);sun.position.set(-5,9,7);scene.add(sun);

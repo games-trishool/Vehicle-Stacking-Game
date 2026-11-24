@@ -49,6 +49,7 @@ export function createShop(deliver:(bundle:Bundle,quantity:number,token:string)=
   return {
     start(){void connect();document.addEventListener('deviceready',()=>setTimeout(()=>void connect(),0),{once:true});},
     get notice(){return {message,claimed};},
+    clearNotice(){claimed=false;message='';changed();},
     price(id:string){return offer(id)?.pricingPhases[0]?.price;},
     available(id:string){const selected=offer(id);return !ordering&&!!selected?.canPurchase&&!!selected.pricingPhases[0]?.price;},
     async buy(id:string){

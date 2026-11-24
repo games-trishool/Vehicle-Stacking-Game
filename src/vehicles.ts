@@ -36,17 +36,23 @@ const carbonFiber=(()=>{
   const map=new THREE.CanvasTexture(canvas);map.colorSpace=THREE.SRGBColorSpace;map.wrapS=map.wrapT=THREE.RepeatWrapping;map.repeat.set(5,2);
   return new THREE.MeshPhysicalMaterial({map,color:0xd1d0c8,metalness:.48,roughness:.38,clearcoat:.48,clearcoatRoughness:.3,envMapIntensity:.95});
 })();
-glass.userData.vehicleSurface='glass';glass.envMapIntensity=1.18;
+glass.userData.vehicleSurface='glass';glass.envMapIntensity=1.42;
+glass.ior=1.52;
+glass.color.setHex(0x172c39);
+alloy.color.setHex(0xd8dfe5);
+alloy.roughness=.16;
+alloy.envMapIntensity=1.3;
 // Tinted laminated glazing keeps reflections while revealing subdued cabin silhouettes.
-glass.transparent=true;glass.opacity=.93;glass.depthWrite=true;
-lamp.emissive.setHex(0xc1d4e4);lamp.emissiveIntensity=.13;
-red.emissive.setHex(0x5a0007);red.emissiveIntensity=.10;
+glass.transparent=true;glass.opacity=.85;glass.depthWrite=true;
+lamp.emissive.setHex(0xdcefff);lamp.emissiveIntensity=.38;
+red.color.setHex(0xd01222);red.emissive.setHex(0xc90812);red.emissiveIntensity=.25;
 let finishGrain:THREE.CanvasTexture|undefined,lensGrain:THREE.CanvasTexture|undefined;
 function paintFinish(mat:THREE.MeshPhysicalMaterial){
-  mat.userData.vehicleSurface='paint';mat.vertexColors=true;
-  // Rich automotive clearcoat and stronger scene reflections make the body
-  // read as lacquered paint instead of flat colored plastic.
-  mat.roughness=.29;mat.clearcoat=1;mat.clearcoatRoughness=.14;mat.envMapIntensity=1.25;
+  mat.userData.vehicleSurface='paint';
+  mat.roughness=.255;
+  mat.clearcoat=1;
+  mat.clearcoatRoughness=.065;
+  mat.envMapIntensity=1.48;
   return addPaintGrain(mat);
 }
 function addPaintGrain(mat:THREE.MeshPhysicalMaterial){
@@ -113,7 +119,8 @@ function treadTexture(){
   c.fillStyle='#999';c.font='bold 9px sans-serif';c.fillText('ROADSPORT 225/45  •  RADIAL TUBELESS',20,16);
   const texture=new THREE.CanvasTexture(canvas);texture.wrapS=THREE.RepeatWrapping;texture.wrapT=THREE.RepeatWrapping;return texture;
 }
-function wheel(g:THREE.Group,x:number,z:number,r:number,tractor=false){
+function wheel(g:THREE.Group,x:number,z:number,r:number,style:'road'|'tractor'|'patrol'='road',spokePairs=7){
+  const tractor=style==='tractor';
   if(!rubber.bumpMap){rubber.bumpMap=treadTexture();rubber.bumpScale=.014;}
   const w=new THREE.Group();w.position.set(x,r,z);g.add(w);
   const width=tractor?(r>.6?.35:.27):r>.4?.25:.23;
@@ -125,6 +132,31 @@ function wheel(g:THREE.Group,x:number,z:number,r:number,tractor=false){
   cylinder(r*.63,width*.86,dark,0);
   for(const side of [-1,1]){
     const face=side*(width*.49);
+    if(style==='patrol'){
+      cylinder(r*.65,.032,dark,face);
+      cylinder(r*.52,.035,brake,face+side*.014);
+      for(let slot=0;slot<10;slot++){
+        const angle=slot*Math.PI/5;
+        const recess=cylinder(r*.069,.008,dark,face+side*.034);
+        recess.position.x=r*.402*Math.cos(angle);
+        recess.position.y=r*.402*Math.sin(angle);
+      }
+      cylinder(r*.225,.054,alloy,face+side*.038);
+      continue;
+    }
+    if(tractor){
+      // A pressed steel dish carries the axle hub on an agricultural wheel.
+      cylinder(r*.65,.036,brake,face);
+      cylinder(r*.49,.041,fleetWhite,face+side*.019);
+      cylinder(r*.20,.067,brake,face+side*.048);
+      for(let bolt=0;bolt<6;bolt++){
+        const angle=bolt*Math.PI/3;
+        const nut=cylinder(r*.034,.025,alloy,face+side*.053);
+        nut.position.x=r*.30*Math.cos(angle);
+        nut.position.y=r*.30*Math.sin(angle);
+      }
+      continue;
+    }
     cylinder(r*.51,.015,brake,face);
     // Drilled rotor vents and a finer machined lip catch highlights through the spokes.
     for(let j=0;j<10;j++){
@@ -133,8 +165,8 @@ function wheel(g:THREE.Group,x:number,z:number,r:number,tractor=false){
     }
     const rim=mesh(w,cached(`lip/${r}`,()=>new THREE.TorusGeometry(r*.635,.016,8,48)),alloy,0,0,face+side*.016);
     rim.rotation.z=Math.PI/10;
-    for(let j=0;j<7;j++){
-      const a=j*Math.PI*2/7;
+    for(let j=0;j<spokePairs;j++){
+      const a=j*Math.PI*2/spokePairs;
       for(const split of [-1,1]){const angle=a+split*.095;const spoke=box(w,Math.sin(angle)*r*.345,Math.cos(angle)*r*.345,face+side*.027,.026,r*.57,.022,alloy,.006);spoke.rotation.z=-angle;}
       cylinder(r*.022,.024,alloy,face+side*.045);
       const lug=w.children[w.children.length-1];lug.position.x=Math.sin(a)*r*.13;lug.position.y=Math.cos(a)*r*.13;
@@ -147,20 +179,31 @@ function wheel(g:THREE.Group,x:number,z:number,r:number,tractor=false){
     lug.rotation.z=-a;lug.rotateY(side*.45);
   }
 }
-function body(g:THREE.Group,id:VehicleId,paint:THREE.Material){
+function body(g:THREE.Group,id:VehicleId,paint:THREE.Material,wheelRadius:number){
   const s=VEHICLE_SPECS[id],L=s.length,W=s.width,sport=id==='sports'||id==='gold',bus=id==='bus';
   const stations=bus?[[-L/2,2.28],[-L*.44,2.47],[L*.42,2.47],[L/2,2.27]]:
+    id==='truck'?[[-L/2,.78],[-.53,.81],[-.39,1.09],[1.24,1.09],[1.96,1.01],[L/2,.85]]:
+    id==='sports'?[[-L/2,.76],[-L*.32,.96],[-.60,.89],[.59,.90],[L*.31,.915],[L*.43,.78],[L/2,.62]]:
     sport?[[-L/2,.72],[-L*.35,.93],[.45,.88],[L*.36,.82],[L/2,.63]]:
-    id==='suv'?[[-L/2,.94],[-L*.35,1.12],[.65,1.12],[L*.39,1.03],[L/2,.85]]:
+    id==='suv'?[[-L/2,1.08],[-L*.40,1.18],[.82,1.16],[L*.40,1.09],[L/2,.93]]:
     [[-L/2,.78],[-L*.37,1.01],[.5,1.02],[L*.37,.94],[L/2,.74]];
   mesh(g,cached(`body/${id}`,()=>{
     const sections:Section[]=[];
     for(let i=0;i<=128;i++){
-      const t=i/128,x=(t-.5)*L,top=interpolate(stations,x),half=W*.5*(.84+.16*Math.pow(Math.sin(Math.PI*t),.45));
-      const radius=bus?.44:sport?.36:.38;let edge=sport?.34:.43;
+      const t=i/128,x=(t-.5)*L,top=interpolate(stations,x);
+      const waist=id==='sports'?1-.036*Math.exp(-4*x*x):1;
+      // Transit body sides stay straight through the passenger window bays.
+      const widthFactor=bus?.97+.03*Math.min(t,1-t,.07)/.07:.84+.16*Math.pow(Math.sin(Math.PI*t),.45);
+      const half=W*.5*widthFactor*waist;
+      const radius=wheelRadius;let edge=sport?.34:.43;
       for(const axle of [-L*.31,L*.31]){const dx=x-axle;if(Math.abs(dx)<radius+.055)edge=Math.max(edge,radius+Math.sqrt((radius+.055)**2-dx*dx));}
       edge=Math.min(edge,top-.045);
-      const halfRing=[[top,0],[top-.018,half*.66],[top-.065,half*.92],[top-.14,half],[edge+.018,half],[edge,half*.91],[sport?.29:.34,half*.67],[sport?.29:.34,0]];
+      // A curved shoulder and a tucked lower door catch two distinct highlights.
+      const depth=top-edge;
+      const halfRing=[[top,0],[top-Math.min(.009,depth*.05),half*.48],[top-Math.min(.018,depth*.12),half*.66],
+        [top-Math.min(.048,depth*.24),half*.88],[top-Math.min(.086,depth*.34),half*.965],
+        [top-Math.min(.14,depth*.48),half],[edge+depth*.24,half*.981],
+        [edge,half*.96],[edge,half*.91],[sport?.29:.34,half*.67],[sport?.29:.34,0]];
       sections.push({x,ring:[...halfRing,...halfRing.slice(1,-1).reverse().map(([y,z])=>[y,-z])]});
     }return loft(sections);
   }),paint);
@@ -168,7 +211,7 @@ function body(g:THREE.Group,id:VehicleId,paint:THREE.Material){
   for(const side of [-1,1]){
     line(g,[[-L*.42,.43,side*W*.463],[0,.40,side*W*.495],[L*.42,.43,side*W*.463]],dark,.035);
     for(const axle of [-L*.31,L*.31]){
-      const arch=mesh(g,cached(`arch/${id}`,()=>new THREE.TorusGeometry((bus?.44:sport?.36:.38)+.057,.016,5,20,Math.PI)),id==='suv'?dark:paint,axle,bus?.44:sport?.36:.38,side*(W*.5+.003));
+      const arch=mesh(g,cached(`arch/${id}`,()=>new THREE.TorusGeometry(wheelRadius+.057,id==='suv'?.035:.016,6,32,Math.PI)),id==='suv'?dark:paint,axle,wheelRadius,side*(W*.5+.003));
       arch.rotation.z=0;
     }
   }
@@ -193,7 +236,7 @@ function cabin(g:THREE.Group,c:Cabin,paint:THREE.Material,key:string){
   for(const side of [-1,1]){
     rod(g,[front,base,side*width*.479],[frontRoof,roof-.04,side*width*.397],.035,paint);
     rod(g,[rear,base,side*width*.479],[rearRoof,roof-.04,side*width*.397],.055,paint);
-    const pillar=THREE.MathUtils.lerp(rearRoof,frontRoof,.56);
+    const pillar=THREE.MathUtils.lerp(rearRoof,frontRoof,key==='car'?.18:key==='truck'?.09:.56);
     rod(g,[pillar,base,side*width*.478],[pillar,heightAt(pillar)-.045,side*width*.399],.029,dark);
     line(g,[[rear,base,side*width*.48],[(rear+front)/2,base-.015,side*width*.485],[front,base,side*width*.48]],alloy,.012);
   }
@@ -217,8 +260,8 @@ function cabin(g:THREE.Group,c:Cabin,paint:THREE.Material,key:string){
   for(let j=0;j<=12;j++){const t=j/12,z=THREE.MathUtils.lerp(-width*.435,width*.435,t),xx=front-dx*.035;sealPoints.push([xx,heightAt(xx)-Math.abs(z/width)*.065+.013,z]);}
   line(g,sealPoints,dark,Math.min(.016,slope*.018));
 }
-const fleetWhite=material(0xe1e5e1,.12,.42,.45),fleetBlue=material(0x075b95,.18,.30,.45),
- reflective=material(0xd6cc78,.15,.41),orange=material(0xb96729,.26,.42,.45),roofBlack=material(0x161a1b,.18,.38,.65);
+const fleetWhite=material(0xfffaf1,.12,.42,.45),fleetBlue=material(0x075bbd,.18,.26,.85),
+ reflective=material(0xffdc62,.15,.35),orange=material(0xff6918,.26,.42,.45),roofBlack=material(0x121d31,.18,.38,.65);
 fleetBlue.emissive.setHex(0x064c9c);fleetBlue.emissiveIntensity=.22;
 const labelMaterials=new Map<string,THREE.Material>();
 function fleetLabel(g:THREE.Group,text:string,x:number,y:number,z:number,w:number,h:number,side:number){
@@ -230,6 +273,7 @@ function fleetLabel(g:THREE.Group,text:string,x:number,y:number,z:number,w:numbe
  }
  const decal=mesh(g,cached(`label/${w}/${h}`,()=>new THREE.PlaneGeometry(w,h)),labelMaterials.get(text)!,x,y,z);
  if(side<0)decal.rotation.y=Math.PI;
+ return decal;
 }
 function lightbar(g:THREE.Group,x:number,y:number,width:number){
  box(g,x,y,0,.28,.07,width,dark,.025);
@@ -263,8 +307,8 @@ function fleetCab(g:THREE.Group,id:VehicleId,paint:THREE.Material){
 function fleetVehicle(g:THREE.Group,id:VehicleId,paint:THREE.Material){
  const {width:W}=VEHICLE_SPECS[id];
  if(id==='police'){
-  for(const x of [-1.395,1.395])for(const side of [-1,1])wheel(g,x,side*(W/2-.115),.38);
-  body(g,'car',paint);cabin(g,{rear:-1.57,rearRoof:-.87,frontRoof:.48,front:1.30,base:.96,roof:1.535,width:W},roofBlack,id);
+  for(const x of [-1.395,1.395])for(const side of [-1,1])wheel(g,x,side*(W/2-.115),.38,'patrol');
+  body(g,'car',paint,.38);cabin(g,{rear:-1.66,rearRoof:-.90,frontRoof:.42,front:1.26,base:.98,roof:1.545,width:W},roofBlack,id);
   mesh(g,cached('police-hood',()=>{
    const sections:Section[]=[];
    for(let j=0;j<=12;j++){
@@ -272,51 +316,134 @@ function fleetVehicle(g:THREE.Group,id:VehicleId,paint:THREE.Material){
     sections.push({x,ring:[[top,0],[top-.018,half*.66],[top-.065,half*.90],[top-.075,half*.90],[top-.01,0],[top-.075,-half*.90],[top-.065,-half*.90],[top-.018,-half*.66]]});
    }
    return loft(sections);
-  }),dark);lightbar(g,-.18,1.60,1.16);
+  }),roofBlack);
+  const barX=-.13;
+  box(g,barX,1.604,0,.24,.048,1.31,dark,.019);
+  box(g,barX,1.671,0,.22,.034,1.28,brake,.012);
   for(const side of [-1,1]){
-   box(g,-.18,.81,side*(W/2+.005),2.08,.29,.022,dark,.01);fleetLabel(g,'POLICE',-.18,.82,side*(W/2+.02),1.30,.19,side);
-   box(g,-.25,1.03,side*(W/2+.015),.19,.025,.03,alloy,.007);
+   box(g,barX,1.575,side*.42,.14,.05,.12,rubber,.01);
+   for(let pod=0;pod<4;pod++)box(g,barX,1.64,side*(.10+pod*.149),.22,.062,.136,side<0?red:fleetBlue,.012);
+   const flank=side*(W/2+.009);
+   box(g,-.12,.79,flank,2.00,.25,.019,roofBlack,.02);
+   box(g,-.12,.652,flank,2.00,.017,.018,fleetBlue,.005);
+   fleetLabel(g,'POLICE',.32,.79,flank+side*.016,.92,.19,side);
+   fleetLabel(g,'24',-.68,.79,flank+side*.016,.28,.15,side);
+   for(const [topX,bottomX] of [[-1.12,-.94],[-.16,-.18],[1.03,.91]]){
+    line(g,[[topX,.965,side*.884],[topX,.78,flank+side*.012],[bottomX,.49,side*.903]],seam,.007);
+   }
+   for(const x of [-.94,-.045])box(g,x,.92,flank,.155,.033,.028,dark,.008);
    rod(g,[.84,1.10,side*.85],[.84,1.12,side*1.02],.022,dark);box(g,.84,1.16,side*1.03,.24,.12,.13,dark,.025);
+   box(g,2.298,.565,side*.29,.022,.041,.13,side<0?red:fleetBlue,.007);
   }
-  rod(g,[-.87,1.55,.18],[-.87,1.98,.18],.008,dark);
+  box(g,-.75,1.554,0,.12,.032,.092,rubber,.009);
+  rod(g,[-.75,1.56,0],[-.82,1.72,0],.010,dark);
   return;
  }
  if(id==='rickshaw'){
-  const green=material(0x1d654c,.45,.38,.4),canopy=material(0x202624,0,.89);
+  const green=paintFinish(material(0x00ac68,.42,.26,.9)),canopy=material(0x202624,0,.89);
   canopy.userData.vehicleSurface='panel';
   for(const side of [-1,1])wheel(g,-.95,side*.64,.34);wheel(g,1.13,0,.32);
-  box(g,-.1,.51,0,2.69,.22,1.19,dark,.06);box(g,-.93,.92,0,1.08,.72,1.43,green,.12);
-  box(g,-.70,1.06,0,.51,.16,1.11,canopy,.07);box(g,-1.02,1.31,0,.12,.47,1.11,canopy,.05);
-  box(g,.36,.74,0,.38,.21,.62,canopy,.04);box(g,1.24,1.01,0,.57,.75,.99,paint,.15);
-  cabin(g,{rear:.86,rearRoof:.87,frontRoof:1.08,front:1.49,base:1.18,roof:1.98,width:1.23},paint,id);
-  box(g,-.18,2.08,0,2.65,.16,1.43,canopy,.075);
+  box(g,-.36,.51,0,2.22,.20,1.19,dark,.06);
+  box(g,-.93,.80,0,1.08,.55,1.43,green,.12);
+  box(g,-.88,1.105,0,.61,.15,1.21,canopy,.07);
+  box(g,-1.17,1.32,0,.15,.44,1.19,canopy,.06).rotation.z=.10;
+  box(g,.30,.70,0,.32,.28,.38,dark,.04);
+  box(g,.32,.86,0,.44,.13,.57,canopy,.055);
+  box(g,.13,1.01,0,.10,.32,.51,canopy,.04);
+  box(g,1.20,.99,0,.66,.68,1.06,paint,.15);
+  // A single raked windshield leaves the driver and passenger entry open.
+  const screen={rear:.86,rearRoof:.87,frontRoof:1.07,front:1.47,base:1.28,roof:2.015,width:1.23};
+  g.userData.cabin=screen;
+  const rake=Math.atan2(screen.front-screen.frontRoof,screen.roof-screen.base);
+  const paneHeight=Math.hypot(screen.front-screen.frontRoof,screen.roof-screen.base);
+  box(g,1.27,1.648,0,.024,paneHeight,1.17,glass,.012).rotation.z=rake;
+  rod(g,[screen.front,screen.base,-.585],[screen.front,screen.base,.585],.028,dark);
+  rod(g,[screen.frontRoof,screen.roof,-.585],[screen.frontRoof,screen.roof,.585],.025,dark);
+  line(g,[[1.47,1.36,-.36],[1.43,1.45,-.16],[1.40,1.51,.24]],dark,.011);
+  // Crown the cloth over its bows and roll the lower edge over the frame.
+  mesh(g,cached('rickshaw-canvas',()=>loft([
+    [-1.51,.61,2.045],[-1.40,.70,2.115],[-1.04,.73,2.15],[-.47,.73,2.135],
+    [.03,.73,2.155],[.53,.72,2.14],[.96,.70,2.14],[1.16,.63,2.07]
+  ].map(([x,w,y])=>({x,ring:[[y,0],[y-.015,w*.67],[y-.055,w*.94],[y-.15,w],
+    [y-.16,w*.96],[y-.055,0],[y-.16,-w*.96],[y-.15,-w],[y-.055,-w*.94],[y-.015,-w*.67]]})))),canopy);
+  mesh(g,cached('rickshaw-mudguard',()=>loft(Array.from({length:25},(_,i)=>{
+    const a=Math.PI*(.10+.80*i/24),x=1.13-.38*Math.cos(a),y=.32+.38*Math.sin(a);
+    return {x,ring:[[y+.025,0],[y+.014,.106],[y-.026,.14],[y-.045,.125],[y-.008,0],[y-.045,-.125],[y-.026,-.14],[y+.014,-.106]]};
+  }))),green);
   for(const side of [-1,1]){
    for(const x of [-1.44,.58])rod(g,[x,.92,side*.64],[x,2.03,side*.64],.027,dark);
-   rod(g,[-1.43,1.45,side*.67],[.30,1.45,side*.67],.022,alloy);
-   box(g,-.91,1.26,side*.72,1.0,.15,.015,paint,.01);
+   rod(g,[-1.43,1.44,side*.67],[-.52,1.44,side*.67],.022,alloy);
+   rod(g,[-.52,1.44,side*.67],[-.43,1.10,side*.67],.022,alloy);
+   rod(g,[screen.front,screen.base,side*.585],[screen.frontRoof,screen.roof,side*.585],.032,paint);
+   box(g,-.91,1.065,side*.705,1.0,.07,.025,paint,.01);
+   box(g,-.05,.44,side*.655,.68,.065,.18,brake,.022);
    box(g,-1.49,.88,side*.47,.025,.15,.12,red,.016);
-   rod(g,[.97,.34,side*.1],[1.24,1.14,side*.1],.023,alloy);
+   rod(g,[1.13,.32,side*.13],[.96,.95,side*.13],.029,alloy);
    rod(g,[.83,1.55,side*.45],[.83,1.58,side*.86],.018,dark);box(g,.83,1.61,side*.86,.13,.16,.06,dark,.02);
   }
   rod(g,[.64,.81,0],[.89,1.40,0],.024,dark);rod(g,[.89,1.40,-.23],[.89,1.40,.23],.025,dark);
-  const headlight=mesh(g,cached('rickshaw-headlight',()=>new THREE.CylinderGeometry(.13,.13,.07,24)),lamp,1.55,1.13,0);headlight.rotation.z=Math.PI/2;
+  const bezel=mesh(g,cached('rickshaw-headlight-rim',()=>new THREE.TorusGeometry(.129,.016,8,28)),alloy,1.556,1.13,0);
+  bezel.rotation.y=Math.PI/2;
+  const headlight=mesh(g,cached('rickshaw-headlight',()=>new THREE.SphereGeometry(1,24,12)),lamp,1.548,1.13,0);
+  headlight.scale.set(.036,.122,.122);
   box(g,1.57,.73,0,.04,.11,.35,fleetWhite,.01);return;
  }
  fleetCab(g,id,paint);
  if(id==='ambulance'){
-  box(g,-.68,1.73,0,3.76,1.68,W*.97,paint,.07);box(g,-.68,2.58,0,3.70,.06,W*.94,fleetWhite,.025);
+  box(g,-.68,1.73,0,3.76,1.68,W*.97,paint,.07);
+  // The rounded module cap tapers down over the cab roof.
+  mesh(g,cached('ambulance-roof-cap',()=>loft([
+   [-2.56,2.51,.94],[-2.46,2.60,1.00],[.98,2.60,1.00],[1.18,2.57,.97],[1.53,2.40,.81]
+  ].map(([x,y,w])=>({x,ring:[[y,0],[y-.008,w*.89],[y-.055,w],[y-.12,w],
+   [y-.12,-w],[y-.055,-w],[y-.008,-w*.89]]})))),paint);
+  box(g,-.74,2.617,0,.75,.035,.67,fleetWhite,.025);
+  for(let slat=0;slat<6;slat++)box(g,-.98+slat*.091,2.637,0,.041,.008,.46,brake,.004);
   lightbar(g,1.83,2.43,1.38);
   for(const side of [-1,1]){
    const z=side*(W*.49+.015);
+   // The skirt follows the rear tire, leaving a clear opening at full wheel height.
+   const skirt=cached('ambulance-skirt',()=>{
+    const outline=new THREE.Shape();
+    outline.moveTo(-2.53,.94);outline.lineTo(-2.53,.57);
+    outline.lineTo(-1.98,.57);outline.quadraticCurveTo(-1.55,1.19,-1.12,.57);
+    outline.lineTo(1.16,.57);outline.lineTo(1.16,.94);outline.closePath();
+    return new THREE.ExtrudeGeometry(outline,{depth:.065,bevelEnabled:false,curveSegments:14});
+   });
+   mesh(g,skirt,paint,0,0,side>0?W*.478-.065:-W*.478);
    box(g,-.68,1.24,z,3.73,.20,.025,orange,.003);box(g,-.68,1.08,z,3.73,.035,.028,reflective,.002);
    box(g,-.68,1.63,z,3.18,.29,.025,fleetBlue,.006);
-   box(g,-1.44,2.13,z,.78,.45,.028,glass,.03);box(g,-.05,2.11,z,1.12,.48,.030,fleetBlue,.025);
-   box(g,-.05,2.11,z+side*.02,.36,.10,.012,fleetWhite,.004);box(g,-.05,2.11,z+side*.02,.10,.35,.012,fleetWhite,.004);
+   const windowX=side>0?.65:-1.44;
+   box(g,windowX,2.12,z,.66,.47,.026,dark,.04);
+   box(g,windowX,2.12,z+side*.018,.60,.41,.019,glass,.03);
+   box(g,-.48,2.11,z,.63,.48,.030,fleetBlue,.025);
+   box(g,-.48,2.11,z+side*.02,.33,.10,.012,fleetWhite,.004);box(g,-.48,2.11,z+side*.02,.10,.33,.012,fleetWhite,.004);
+   if(side>0){
+    for(const edge of [.24,1.06])rod(g,[edge,.75,z+.018],[edge,2.40,z+.018],.008,seam);
+    rod(g,[.24,2.40,z+.018],[1.06,2.40,z+.018],.008,seam);
+    box(g,.65,.59,z,.81,.065,.16,brake,.014);
+    box(g,.37,1.40,z+.023,.13,.05,.021,dark,.01);
+   }else{
+    for(const x of [-.56,.36]){
+     box(g,x,.91,z,.85,.27,.022,brake,.014);
+     box(g,x,.91,z-.014,.82,.24,.014,paint,.01);
+     box(g,x,.95,z-.024,.115,.035,.015,dark,.008);
+    }
+   }
    fleetLabel(g,'AMBULANCE',-.68,1.63,z+side*.02,2.70,.20,side);
    for(const x of [-2.19,.82])box(g,x,2.49,z,.18,.07,.03,fleetBlue,.012);
   }
-  box(g,-2.58,1.70,0,.032,1.58,W*.89,paint,.03);
-  for(const side of [-1,1]){box(g,-2.603,2.12,side*.48,.018,.41,.61,glass,.03);box(g,-2.61,1.46,side*.10,.025,.20,.025,alloy,.006);}
+  box(g,-2.56,1.68,0,.034,1.59,W*.82,dark,.03);
+  for(const side of [-1,1]){
+   const doorZ=side*.425;
+   box(g,-2.582,1.68,doorZ,.022,1.55,.832,paint,.02);
+   box(g,-2.60,2.09,doorZ,.022,.46,.64,dark,.025);
+   box(g,-2.616,2.09,doorZ,.014,.40,.58,glass,.02);
+   box(g,-2.60,1.24,doorZ,.022,.20,.83,orange,.008);
+   for(const y of [1.17,1.94])box(g,-2.60,y,side*.812,.035,.095,.068,alloy,.01);
+   box(g,-2.60,1.46,side*.095,.035,.17,.055,dark,.01);
+   box(g,-2.57,2.48,side*.80,.038,.092,.29,side<0?red:fleetBlue,.02);
+  }
+  box(g,-2.54,.71,0,.20,.095,W*.83,brake,.018);
  }else if(id==='fireengine'){
   box(g,-.81,1.66,0,3.77,1.49,W*.96,paint,.06);lightbar(g,1.90,2.43,1.43);
   for(const side of [-1,1]){
@@ -406,8 +533,9 @@ export function prepareGoldenBonusVehicle(){
       const geometry=part.geometry.applyMatrix4(orient.clone().multiply(part.matrixWorld));
       surface.userData.vehicleSurface=kind;
       if(kind==='paint'&&surface instanceof THREE.MeshPhysicalMaterial){
-        addPaintGrain(surface);
-        surface.envMapIntensity=1.35;
+        paintFinish(surface);
+        surface.color.setHex(0xffb92f);
+        surface.roughness=.20;
       }
       const panel=new THREE.Mesh(geometry,surface);
       panel.userData.surface=kind;
@@ -421,70 +549,163 @@ export function prepareGoldenBonusVehicle(){
 }
 export function createVehicle(id:VehicleId,color?:number){
   const key=id+String(color);if(models.has(key))return models.get(key)!.clone();
-  const s=VEHICLE_SPECS[id],g=new THREE.Group(),paint=paintFinish(material(color??s.color,id==='gold'?.78:.28,id==='gold'?.22:.36,id==='gold'?.96:.72)),L=s.length,W=s.width;
+  const s=VEHICLE_SPECS[id],g=new THREE.Group(),paint=paintFinish(material(color??s.color,id==='gold'?.64:.42,.26,1)),L=s.length,W=s.width;
   for(const panel of [fleetWhite,orange,roofBlack])paintFinish(panel);
   headlightFinish();
   if(['ambulance','police','rickshaw','fireengine','dumptruck','mixer'].includes(id)){
     fleetVehicle(g,id,paint);
   }else if(id==='tractor'){
-    for(const x of [-1.16,1.16])for(const side of [-1,1])wheel(g,x,side*(x<0?.83:.78),x<0?.67:.46,true);
+    for(const x of [-1.16,1.16])for(const side of [-1,1])wheel(g,x,side*(x<0?.83:.78),x<0?.67:.46,'tractor');
     box(g,0,.60,0,3.35,.30,1.25,dark,.08);
-    box(g,.65,1.04,0,2.43,.76,1.2,paint,.16);
+    mesh(g,cached('tractor-bonnet',()=>loft([
+      [-.46,1.40,.53],[-.21,1.47,.60],[.45,1.45,.60],[1.32,1.35,.56],[1.82,1.27,.49],[1.87,1.22,.47]
+    ].map(([x,y,w])=>({x,ring:[[y,0],[y-.025,w*.80],[y-.09,w],[.84,w],[.75,w*.83],
+      [.75,-w*.83],[.84,-w],[y-.09,-w],[y-.025,-w*.80]]})))),paint);
     cabin(g,{rear:-1.7,rearRoof:-1.56,frontRoof:-.32,front:-.12,base:1.08,roof:2.19,width:1.7},paint,id);
     box(g,-.96,2.23,0,1.6,.08,1.7,paint,.07);
     for(const side of [-1,1]){
-      box(g,-1.16,1.38,side*.83,1.54,.10,.52,paint,.06);
+      const fender=cached('tractor-rear-fender',()=>{
+        const arch=new THREE.Shape();
+        arch.absarc(0,0,.746,.36,Math.PI-.36,false);
+        arch.absarc(0,0,.704,Math.PI-.36,.36,true);
+        arch.closePath();
+        return new THREE.ExtrudeGeometry(arch,{depth:.40,curveSegments:16,bevelEnabled:false});
+      });
+      mesh(g,fender,paint,-1.16,.67,side*.83-.20);
+      box(g,-1.60,1.28,side*.83,.14,.085,.20,red,.018);
       box(g,-.65,.69,side*.80,.70,.08,.35,brake,.01);
       box(g,-.65,.88,side*.72,.58,.08,.28,brake,.01);
       rod(g,[-.2,1.1,side*.64],[-.2,1.8,side*.64],.019,alloy);
+      // Lower lift arms and their links meet behind the differential.
+      rod(g,[-1.27,.54,side*.39],[-1.91,.39,side*.51],.045,brake);
+      rod(g,[-1.39,.95,side*.44],[-1.72,.44,side*.47],.032,alloy);
+      box(g,.65,1.12,side*.583,.76,.21,.032,dark,.025);
+      for(let vent=0;vent<6;vent++)box(g,.36+vent*.104,1.12,side*.603,.028,.154,.018,brake,.005).rotation.z=-.22;
+      box(g,-.96,2.20,side*.79,.24,.096,.095,dark,.02);
+      rod(g,[-.34,1.84,side*.69],[-.25,1.87,side*.91],.023,dark);
+      box(g,-.25,1.83,side*.92,.14,.19,.073,dark,.022);
     }
+    rod(g,[-1.49,.94,0],[-1.85,.72,0],.038,brake);
+    box(g,1.74,.62,0,.39,.27,.83,brake,.04);
     box(g,1.87,1.03,0,.045,.48,.94,dark,.035);
     for(let j=0;j<10;j++)box(g,1.896,1.03,-.40+j*.089,.012,.40,.015,alloy,.002);
     rod(g,[.22,1.35,.47],[.22,2.22,.47],.043,dark);
-    box(g,.22,2.20,.47,.16,.05,.13,dark);
+    rod(g,[.22,1.48,.47],[.22,1.96,.47],.066,brake);
+    rod(g,[.22,2.20,.47],[.14,2.24,.47],.043,dark);
   }else{
-    for(const x of [-L*.31,L*.31])for(const side of [-1,1])wheel(g,x,side*(W*.5-.115),id==='bus'?.44:(id==='sports'||id==='gold')?.36:.38);
-    body(g,id,paint);
+    const wheelRadius=id==='suv'?.425:id==='bus'?.44:(id==='sports'||id==='gold')?.36:.38;
+    for(const x of [-L*.31,L*.31])for(const side of [-1,1])wheel(g,x,side*(W*.5-.115),wheelRadius,'road',id==='sports'?5:7);
+    body(g,id,paint,wheelRadius);
     if(id==='bus'){
       for(const side of [-1,1]){
-        for(let j=0;j<6;j++)box(g,-2.10+j*.77,1.87,side*(W*.5+.015),.685,.75,.022,glass,.04);
-        box(g,0,1.34,side*W*.501,L*.90,.035,.018,alloy,.004);
-        for(const x of [-1.54,1.63]){
-          box(g,x,1.27,side*W*.505,.64,1.50,.022,dark,.012);
-          for(const dx of [-.16,.16])box(g,x+dx,1.65,side*W*.517,.27,.67,.012,glass,.015);
-          line(g,[[x,.56,side*W*.522],[x,1.92,side*W*.522]],alloy,.007);
+        const z=side*W*.5;
+        box(g,0,1.82,z,L-.14,.88,.035,dark,.035);
+        // Match the two curbside entrances to gaps between the axles and overhangs.
+        const bays=side===1?[[-1.83,1.55],[.13,.94],[1.24,1.16]]:[[-2.08,1.01],[-.99,1.06],[.13,1.06],[1.24,1.06],[2.26,.88]];
+        for(const [x,width] of bays){
+          box(g,x,1.82,z+side*.021,width,.79,.028,glass,.035);
+          box(g,x,2.02,z+side*.038,width,.018,.014,dark,.004);
         }
+        if(side===1)for(const [x,width] of [[-.70,.64],[2.49,.50]]){
+          box(g,x,1.33,z+.021,width,1.79,.042,dark,.035);
+          for(const offset of [-width/4,width/4]){
+            box(g,x+offset,1.79,z+.051,width/2-.045,.78,.024,glass,.025);
+            box(g,x+offset,1.06,z+.051,width/2-.045,.53,.024,glass,.025);
+          }
+          box(g,x,.46,z+.043,width-.02,.036,.08,alloy,.01);
+        }
+        fleetLabel(g,'CITY TRANSIT',.43,1.18,z+side*.025,.96,.16,side);
+        rod(g,[2.54,2.14,z],[2.62,2.09,z+side*.12],.019,dark);
+        box(g,2.62,1.98,z+side*.12,.105,.24,.075,dark,.025);
       }
-      box(g,L/2+.022,1.87,0,.03,.83,W*.78,glass,.07);
+      const nose=L/2;
+      box(g,nose+.009,1.76,0,.044,1.04,W*.92,dark,.065);
+      box(g,nose+.036,1.72,0,.025,.80,W*.87,glass,.045);
+      for(const side of [-1,1]){
+        rod(g,[nose+.064,1.35,side*.33],[nose+.065,1.49,side*.56],.011,dark);
+        rod(g,[nose+.067,1.43,side*.39],[nose+.067,1.57,side*.81],.014,dark);
+      }
+      const sign=fleetLabel(g,'07   CENTRAL',nose+.035,2.19,0,1.38,.16,1);
+      sign.rotation.y=Math.PI/2;
+      (sign.material as THREE.MeshPhysicalMaterial).color.setHex(0xffbf50);
       box(g,-L/2-.022,1.85,0,.03,.70,W*.78,glass,.06);
-      box(g,0,2.51,0,1.75,.08,1.15,dark,.05);
-      box(g,L/2+.019,2.18,0,.025,.16,.92,dark,.025);
+      box(g,-L/2-.024,1.20,0,.034,.31,1.02,dark,.03);
+      for(let row=0;row<5;row++)box(g,-L/2-.046,1.09+row*.055,0,.016,.018,.94,brake,.005);
+      box(g,-.28,2.49,0,1.74,.086,1.12,fleetWhite,.042);
+      for(const x of [-.64,.08]){
+        const vent=mesh(g,cached('bus-roof-vent',()=>new THREE.CylinderGeometry(.226,.226,.014,28)),dark,x,2.536,0);
+        for(let j=-2;j<=2;j++)box(g,x,vent.position.y+.01,j*.068,.42*Math.sqrt(1-(j*.3)**2),.009,.018,brake,.003);
+      }
     }else{
-      const c:Cabin=id==='truck'?{rear:-.43,rearRoof:-.33,frontRoof:.67,front:1.38,base:1.04,roof:1.765,width:W}:
-        (id==='sports'||id==='gold')?{rear:-1.49,rearRoof:-.74,frontRoof:.15,front:1.04,base:.87,roof:1.275,width:W}:
-        id==='suv'?{rear:-1.86,rearRoof:-1.46,frontRoof:.43,front:1.30,base:1.04,roof:1.89,width:W}:
+      const c:Cabin=id==='truck'?{rear:-.45,rearRoof:-.36,frontRoof:.59,front:1.24,base:1.07,roof:1.765,width:W*.97}:
+        id==='sports'?{rear:-1.83,rearRoof:-.92,frontRoof:.04,front:.88,base:.89,roof:1.275,width:W*.94}:
+        id==='gold'?{rear:-1.49,rearRoof:-.74,frontRoof:.15,front:1.04,base:.87,roof:1.275,width:W}:
+        id==='suv'?{rear:-2.08,rearRoof:-1.79,frontRoof:.47,front:1.22,base:1.13,roof:1.85,width:W*.96}:
+        id==='car'?{rear:-1.76,rearRoof:-.94,frontRoof:.23,front:.98,base:.99,roof:1.535,width:W*.97}:
         {rear:-1.57,rearRoof:-.87,frontRoof:.48,front:1.30,base:.96,roof:1.535,width:W};
       cabin(g,c,paint,id);
       for(const side of [-1,1]){
         const sideZ=side*W*.501;
-        for(const x of id==='truck'?[-.35,1.31]:[-1.40,-.15,1.25])line(g,[[x,.48,sideZ*.95],[x,.72,sideZ],[x,c.base-.02,sideZ*.97]],seam,.006);
-        for(const x of id==='truck'?[.04]:[-.83,.50])box(g,x,c.base-.09,sideZ,.18,.025,.025,alloy,.008);
+        if(id==='car'){
+          // A single long door meets the fixed quarter window behind the B-pillar.
+          line(g,[[-.77,.98,sideZ*.975],[-.71,.77,sideZ],[-.58,.47,sideZ*.98],[.75,.47,sideZ*.98],[.90,.74,sideZ],[.94,.97,sideZ*.97]],seam,.009);
+          box(g,-.53,.91,sideZ,.19,.035,.038,alloy,.012);
+          line(g,[[-1.74,.95,sideZ*.927],[-.77,.98,sideZ*.968],[.93,.97,sideZ*.968],[1.66,.91,sideZ*.928]],alloy,.009);
+        }else if(id==='sports'){
+          line(g,[[-.82,.87,side*.947],[-.76,.63,side*.953],[-.65,.42,side*.929],[.65,.42,side*.929],[.78,.59,side*.957],[.81,.87,side*.946]],seam,.008);
+          box(g,-.62,.80,side*.956,.19,.026,.018,brake,.006);
+        }else{
+          for(const x of id==='truck'?[-.35,1.31]:[-1.40,-.15,1.25])line(g,[[x,.48,sideZ*.95],[x,.72,sideZ],[x,c.base-.02,sideZ*.97]],seam,.006);
+          for(const x of id==='truck'?[.04]:[-.83,.50])box(g,x,c.base-.09,sideZ,.18,.025,.025,alloy,.008);
+        }
         rod(g,[.83,c.base+.13,side*W*.46],[.82,c.base+.15,side*(W*.5+.11)],.025,dark);
         mesh(g,cached('mirror-housing',()=>new RoundedBoxGeometry(.25,.12,.15,1,.035)),paint,.82,c.base+.18,side*(W*.5+.12));
         box(g,.79,c.base+.18,side*(W*.5+.196),.16,.073,.008,glass,.015);
       }
       if(id==='truck'){
-        box(g,-1.41,1.015,0,1.73,.045,W*.80,dark,.025);
-        for(const side of [-1,1])box(g,-1.42,1.15,side*(W*.5-.055),1.87,.30,.10,paint,.035);
-        box(g,-L/2+.07,1.15,0,.10,.30,W*.95,paint,.035);
-        for(let j=0;j<7;j++)box(g,-1.40,1.045,-.65+j*.217,1.65,.012,.022,brake,.003);
-        box(g,-L/2-.007,1.12,0,.014,.035,.25,alloy,.005);
+        const tail=-L/2;
+        // Keep the load floor low between the wheel tubs and cap the exposed rails.
+        box(g,-1.46,.813,0,1.87,.032,W*.91,dark,.015);
+        for(let rib=-5;rib<=5;rib++)box(g,-1.46,.835,rib*.145,1.77,.018,.042,dark,.008);
+        box(g,-.51,1.015,0,.09,.46,W*.94,paint,.025);
+        box(g,tail+.065,1.005,0,.12,.49,W*.91,paint,.035);
+        box(g,tail,1.14,0,.023,.075,.28,dark,.012);
+        box(g,tail-.014,1.15,0,.018,.025,.19,alloy,.005);
+        box(g,tail+.018,.475,0,.16,.12,W*.92,alloy,.028);
+        box(g,tail+.013,.542,0,.15,.025,W*.63,rubber,.01);
+        for(const side of [-1,1]){
+          const railZ=side*W*.458;
+          box(g,-1.46,.996,railZ,1.98,.50,.145,paint,.045);
+          box(g,-1.46,1.247,railZ,1.96,.035,.15,dark,.017);
+          box(g,-L*.31,.843,side*W*.388,.88,.22,.28,dark,.09);
+          box(g,tail-.008,1.01,railZ,.035,.29,.13,red,.02);
+          box(g,tail-.029,.96,railZ,.012,.049,.106,lamp,.007);
+          box(g,.15,.355,side*W*.49,1.52,.065,.17,rubber,.026);
+        }
       }
-      if(id==='suv')for(const side of [-1,1])rod(g,[-1.33,1.94,side*.69],[.37,1.94,side*.69],.024,alloy);
+      if(id==='suv'){
+        for(const side of [-1,1]){
+          // Divide the cargo glass from the rear door and finish the window surround.
+          rod(g,[-1.31,c.base,side*c.width*.478],[-1.43,c.roof-.045,side*c.width*.399],.043,paint);
+          line(g,[[c.rear,c.base,side*c.width*.48],[c.rearRoof,c.roof-.048,side*c.width*.402]],dark,.025);
+          const railZ=side*.68;
+          for(const x of [-1.62,.31])box(g,x,1.875,railZ,.19,.09,.09,dark,.02);
+          rod(g,[-1.68,1.917,railZ],[.37,1.917,railZ],.026,brake);
+          box(g,-.03,.46,side*.985,1.77,.13,.09,dark,.03);
+          box(g,-.03,.405,side*1.015,1.70,.047,.12,brake,.015);
+          box(g,-L/2-.014,.865,side*.76,.043,.31,.145,red,.018);
+          box(g,-L/2-.038,.82,side*.76,.012,.052,.12,lamp,.006);
+        }
+        box(g,-L/2-.018,.91,0,.05,.055,.28,dark,.016);
+        box(g,L/2+.004,.367,0,.106,.104,W*.62,brake,.025);
+      }
       if(id==='sports'){
-        box(g,-1.78,.97,0,.33,.043,W*.90,paint,.02);
-        for(const side of [-1,1])box(g,-1.8,.89,side*.65,.043,.16,.033,dark,.009);
-        for(const side of [-1,1])line(g,[[1.0,.90,side*.48],[1.48,.86,side*.51],[1.97,.77,side*.55]],seam,.008);
+        // The lip follows the deck edge; the hood seams follow its raised shoulders.
+        box(g,-2.19,.79,0,.18,.055,W*.80,paint,.026);
+        for(const side of [-1,1]){
+          line(g,[[.88,.897,side*.51],[1.42,.905,side*.56],[1.98,.772,side*.59],[2.18,.67,side*.57]],seam,.007);
+          line(g,[[-2.322,.696,side*.39],[-2.322,.704,side*.60],[-2.32,.716,side*.77]],red,.026);
+        }
       }
       if(id==='gold'){
         // Carbon aero, vented bodywork and the multi-plane endurance-racer wing.
@@ -559,9 +780,25 @@ export function createVehicle(id:VehicleId,color?:number){
   // Recessed grille, separate light lenses, bumper trim and exhaust finish the silhouette.
   const front=id==='tractor'?1.86:L/2,lampY=['ambulance','fireengine','dumptruck','mixer'].includes(id)?1.03:id==='bus'?.91:id==='tractor'?1.18:(id==='sports'||id==='gold')?.55:id==='suv'?.72:.63;
   if(id!=='rickshaw')for(const side of [-1,1]){
-    box(g,front+.018,lampY,side*W*.34,.037,.115,id==='bus'?.29:.36,dark,.025);
-    box(g,front+.040,lampY+.014,side*W*.34,.012,.052,id==='bus'?.24:.30,lamp,.012);
-    box(g,-L/2-.025,id==='bus'?1.0:.73,side*W*.36,.025,id==='bus'?.30:.12,.22,red,.018);
+    const width=id==='bus'?.29:id==='tractor'?.23:.36,centerZ=side*W*(id==='tractor'?.17:.34);
+    if(id==='car'){
+      for(const spacing of [-.092,.092]){
+        const z=centerZ+spacing;
+        const bezel=mesh(g,cached('coupe-lamp-ring',()=>new THREE.TorusGeometry(.082,.012,8,28)),alloy,front+.027,lampY,z);
+        bezel.rotation.y=Math.PI/2;
+        const lens=mesh(g,cached('coupe-lamp-lens',()=>new THREE.SphereGeometry(1,20,12)),lamp,front+.024,lampY,z);
+        lens.scale.set(.025,.077,.077);
+      }
+    }else{
+    box(g,front+.018,lampY,centerZ,.037,.115,width,dark,.025);
+    box(g,front+.040,lampY+.035,centerZ,.012,.018,width*.88,lamp,.005);
+    for(const offset of [-.23,.21]){
+      const projector=mesh(g,cached('projector-lens',()=>new THREE.SphereGeometry(1,12,8)),lamp,
+        front+.042,lampY-.014,centerZ+side*width*offset);
+      projector.scale.set(.018,.023,.043);
+    }
+    }
+    if(id!=='truck'&&id!=='suv'&&id!=='sports')box(g,-L/2-.025,id==='bus'?1.0:.73,side*W*.36,.025,id==='bus'?.30:.12,.22,red,.018);
   }
   if(id!=='tractor'&&id!=='rickshaw'){
     box(g,L/2+.02,.53,0,.035,.18,W*.52,dark,.035);
@@ -585,6 +822,7 @@ export function createVehicle(id:VehicleId,color?:number){
     const merged=mergeGeometries(parts);parts.forEach(geo=>geo.dispose());
     if(merged){
       if(mat.userData.vehicleSurface==='paint'){
+        (mat as THREE.MeshPhysicalMaterial).vertexColors=true;
         const position=merged.getAttribute('position'),colors=new Float32Array(position.count*3);
         for(let i=0;i<position.count;i++){
           const dust=1-THREE.MathUtils.smoothstep(position.getY(i),.40,.91);

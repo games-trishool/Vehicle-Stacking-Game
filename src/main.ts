@@ -8,6 +8,7 @@ import '@fontsource/outfit/latin-700.css';
 import '@fontsource/outfit/latin-800.css';
 import './style.css';
 import './layout.css';
+import privacyDocument from '../public/privacy.html?raw';
 import { Capacitor } from '@capacitor/core';
 import { allAccessPass,bundles,createShop } from './shop';
 import { App } from '@capacitor/app';
@@ -22,6 +23,9 @@ import type { WorldId } from './scenery';
 let storage:Storage;
 try{storage=window.localStorage;}catch{storage={getItem:()=>null,setItem:()=>{throw new Error("Storage unavailable");},removeItem:()=>{},clear:()=>{},key:()=>null,length:0};}
 const state=loadState(storage);let selectionUpdatePending=false;
+// Temporary catalog access is held in memory, separate from persisted ownership.
+state.unlocked=[...new Set([...state.unlocked,...VEHICLES.map(vehicle=>vehicle.id)])];
+state.unlockedWorlds=[...new Set([...state.unlockedWorlds,...WORLDS.map(world=>world.id)])];
 // Apply the new Ultra default once to existing saves that were still on Auto;
 // players can choose another preset afterward and that preference will stick.
 try{if(storage.getItem('stackline.ultra-visual-upgrade.v1')!=='1'){if(state.settings.quality==='auto'){state.settings.quality='ultra';saveState(storage,state);}storage.setItem('stackline.ultra-visual-upgrade.v1','1');}}catch{/* Graphics remain available when storage is unavailable. */}
@@ -38,7 +42,7 @@ interstitials.onBusyChange=busy=>{
 app.innerHTML=`
  <div class="home-shell" id="home-shell">
   <header class="header">
-    <button class="brand" data-action="home" aria-label="Stack Vechiles home"><span class="brand-mark"><img src="/icons/icon-192.png" alt="" /></span><span class="brand-name">Stack <span>Vechiles</span></span></button>
+    <button class="brand" data-action="home" aria-label="Stack Vehicles home"><span class="brand-mark"><img src="/icons/icon-192.png" alt="" /></span><span class="brand-name">Stack <span>Vehicles</span></span></button>
     <nav class="navigation" aria-label="Main navigation"><button class="nav-link active" data-action="home">The game</button><button class="nav-link" data-action="worlds">Explore worlds</button><button class="nav-link" data-action="garage">Garage</button><button class="nav-link" data-action="leaderboard">Leaderboard</button></nav>
     <div class="header-actions"><div class="currency-balances"><span class="ruby-balance" aria-label="${state.rubies} diamonds">${icon('ruby')}<span id="ruby-balance">${state.rubies}</span></span><button class="coin-balance" data-action="garage" aria-label="${state.coins} coins, open garage">${icon('coin')}<span id="coin-balance">${state.coins}</span></button></div><span class="header-divider"></span><button class="icon-button" data-action="settings" aria-label="Settings">${icon('settings')}</button></div>
   </header>
@@ -46,7 +50,7 @@ app.innerHTML=`
     <div class="hero" id="hero">
       <section class="intro" id="intro">
         <div class="home-actions">
-        <button class="play-button" data-action="play" disabled aria-label="Let’s play">${icon('play')}<span>Let’s play</span><span class="key-hint">SPACE</span>${icon('arrow')}</button>
+        <button class="play-button" data-action="play" disabled aria-label="Let’s play">${icon('play')}<span class="play-label">Let’s play</span><span class="key-hint">SPACE</span>${icon('arrow')}</button>
         <div class="selection-list">
           <button class="selection-row" data-action="vehicles" aria-label="Change vehicle"><span class="selection-icon vehicle-icon" id="selection-vehicle-image">${icon('car')}</span><span class="selection-text"><strong>Change vehicle</strong><small id="selected-vehicle-name">Mixed vehicles</small></span>${icon('arrow')}</button>
           <button class="selection-row" data-action="worlds" aria-label="Change place"><span class="selection-icon world-icon" id="selection-world-image">${icon('tree')}</span><span class="selection-text"><strong>Change place</strong><small id="selected-world-name">Realistic Forest</small></span>${icon('arrow')}</button>
@@ -63,7 +67,7 @@ app.innerHTML=`
         <div class="scene-foot home-only"><span><i></i> SIX WORLDS. LIMITLESS HEIGHTS.</span><span>DRAG YOUR AMBITION UPWARD ${icon('layers')}</span></div>
         <div class="game-hud" id="game-hud" hidden>
           <div class="hud-top"><div class="hud-controls"><button class="hud-button" data-action="pause" aria-label="Pause game">${icon('pause')}</button><div class="stability"><div><span>TOWER BALANCE</span><span id="stability-value">100%</span></div><div class="stability-track"><i id="stability-fill"></i></div></div></div><div class="hud-score"><small>SCORE</small><strong id="score">0</strong></div><div class="hud-currencies"><div class="hud-coins">${icon('coin')}<span id="run-coins">0</span></div><div class="hud-rubies">${icon('ruby')}<span id="game-rubies">${state.rubies}</span></div></div></div>
-          <div class="hud-height"><span id="height">0.0</span><small>METERS UP</small></div>
+          <div class="hud-height"><div><span id="height">0.0</span> m</div><small>METERS UP</small></div>
           <div class="landing-feedback" id="landing-feedback" aria-live="polite"></div>
           <div class="drop-instruction" id="drop-instruction"><span class="tap-ring"></span><strong>Tap to drop</strong></div>
         </div>
@@ -84,7 +88,6 @@ app.innerHTML=`
     </section>
   </main>
  </div>
- <div class="loading" id="loading" role="status" aria-live="polite"><span class="loading-emblem">${icon('layers')}</span><span class="loading-kicker">STACK VEHICLES</span><strong class="loading-title">STACKLINE</strong><span class="loading-status" id="loading-status">Preparing your world</span><div class="loading-track" role="progressbar" aria-label="Loading game" aria-valuemin="0" aria-valuemax="100" aria-valuenow="4"><i id="loading-progress"></i></div><span class="loading-percent" id="loading-percent">4%</span></div>
  <dialog id="modal" class="modal"><div id="modal-content"></div></dialog>
  <div class="toast" id="toast" role="status" aria-live="polite"></div>
  <div class="achievement-toast" id="achievement-toast" role="status" aria-live="polite"></div>
@@ -130,6 +133,7 @@ const shop=createShop((bundle,quantity,token)=>{
  }
 
  renderState();
+ window.setTimeout(()=>{shop.clearNotice();if(dialogKind==='shop')openDialog('shop');},2000);
 },()=>{if(dialogKind==='shop'&&!watchingReward)openDialog('shop');});
 let shopAdStatus:{message:string;claimed:boolean}|undefined;
 function shopContent(){
@@ -162,7 +166,10 @@ async function shopBuy(id:string){
      shopAdStatus={message:'Reward claimed! Added 25 coins and 1 diamond.',claimed:true};
    }else shopAdStatus={message:'Finish the ad to collect your bundle.',claimed:false};
  }catch{shopAdStatus={message:'Reward unavailable. Please try again.',claimed:false};}
- finally{watchingReward=false;openDialog('shop');}
+ finally{
+   watchingReward=false;openDialog('shop');
+   if(shopAdStatus?.claimed)window.setTimeout(()=>{shopAdStatus=undefined;if(dialogKind==='shop')openDialog('shop');},2000);
+ }
 }
 function openDialog(kind:string){
  if(interstitials.busy)return;
@@ -174,18 +181,18 @@ function openDialog(kind:string){
  if(kind==='vehicles'||kind==='garage'){
    const isGarage=kind==='garage';content=modalHeader(isGarage?'GOOD THINGS COME WITH WHEELS':'YOUR TOWER. YOUR WAY.',isGarage?'The garage.':'Pick your ride.',isGarage?'Earn coins with every landing. Find your next favorite.':'Stick with a favorite, or keep the climb surprising.',false);
    content+=`<div class="modal-meta"><span>${state.unlocked.length-1} / ${VEHICLES.length-1} vehicles unlocked</span><span class="coin-balance">${icon('coin')} ${state.coins} coins</span></div><div class="vehicle-grid">`;
-   for(const v of VEHICLES){const owned=state.unlocked.includes(v.id),pending=pendingVehicle===v.id,selected=owned&&pending,shortfall=Math.max(0,v.cost-state.coins);content+=`<button class="vehicle-card ${selected?'selected':''} ${!owned?'locked':''} ${!owned&&pending?'locked-selected':''} ${v.id==='mixed'?'mixed-card':''}" data-action="select-vehicle" data-id="${v.id}" aria-pressed="${selected}"><div class="vehicle-card-top"><span>${v.label}</span>${selected?`<span class="selected-check">${icon('check')}</span>`:!owned?icon('lock'):''}</div><div class="vehicle-render">${v.id==='mixed'?'<span class="mixed-spark spark-one">✦</span><span class="mixed-spark spark-two">✦</span>':''}<img src="${thumbs[v.id]||''}" alt="${v.name} 3D model" /></div><div class="vehicle-details"><h3>${v.name}</h3><p>${v.subtitle}</p><span class="vehicle-status ${!owned&&shortfall>0&&pending?'insufficient':''}">${selected?'SELECTED':owned?'READY TO STACK':shortfall>0&&pending?`${shortfall} COINS MORE NEEDED`:`${icon('coin')} ${v.cost} · UNLOCK`}</span></div></button>`;}
+   for(const v of VEHICLES){const owned=state.unlocked.includes(v.id),pending=pendingVehicle===v.id,selected=owned&&pending,affordable=!owned&&state.coins>=v.cost&&state.rubies>=(v.diamonds||0);content+=`<button class="vehicle-card ${selected?'selected':''} ${!owned?'locked':''} ${affordable?'affordable':''} ${!owned&&pending?'locked-selected':''} ${v.id==='mixed'?'mixed-card':''}" data-action="select-vehicle" data-id="${v.id}" aria-pressed="${selected}"><div class="vehicle-card-top"><span>${v.label}</span>${selected?`<span class="selected-check">${icon('check')}</span>`:''}</div><div class="vehicle-render">${v.id==='mixed'?'<span class="mixed-spark spark-one">✦</span><span class="mixed-spark spark-two">✦</span>':''}<img src="${thumbs[v.id]||''}" alt="${v.name} 3D model" /></div><div class="vehicle-details"><h3>${v.name}</h3><p>${v.subtitle}</p><span class="vehicle-status">${selected?'SELECTED':'PREVIEW ? ' + `${icon('coin')} ${v.cost.toLocaleString()} + ${icon('ruby')} ${v.diamonds||0} · UNLOCK`}</span></div></button>`;}
    content+='</div>'+selectionFooter('vehicles');
  }
  if(kind==='worlds'){
    content=modalHeader('A CHANGE OF SCENERY','Find your happy place.','Choose a place, then tap Done to save.',false);
    content+=`<div class="modal-meta"><span>${state.unlockedWorlds.length} / 6 places unlocked</span><span class="coin-balance">${icon('coin')} ${state.coins} coins</span></div><div class="world-grid">`;
-   for(const w of WORLDS){const owned=state.unlockedWorlds.includes(w.id),pending=pendingWorld===w.id,selected=owned&&pending,shortfall=Math.max(0,w.cost-state.coins);content+=`<button class="world-card ${selected?'selected':''} ${!owned?'locked':''} ${!owned&&pending?'locked-selected':''}" data-action="select-world" data-id="${w.id}" aria-pressed="${selected}"><div class="world-art">${worldArt(w.id)}<span>${w.tag}</span>${selected?`<i>${icon('check')}</i>`:!owned?`<i>${icon('lock')}</i>`:''}</div><div><h3>${w.name}</h3><p>${w.subtitle}</p><span class="vehicle-status ${!owned&&shortfall>0&&pending?'insufficient':''}">${selected?'SELECTED':owned?'READY TO EXPLORE':shortfall>0&&pending?`${shortfall} COINS MORE NEEDED`:`${icon('coin')} ${w.cost} · UNLOCK`}</span></div></button>`;}
+   for(const w of WORLDS){const owned=state.unlockedWorlds.includes(w.id),pending=pendingWorld===w.id,selected=owned&&pending,affordable=!owned&&state.coins>=w.cost&&state.rubies>=(w.diamonds||0);content+=`<button class="world-card ${selected?'selected':''} ${!owned?'locked':''} ${affordable?'affordable':''} ${!owned&&pending?'locked-selected':''}" data-action="select-world" data-id="${w.id}" aria-pressed="${selected}"><div class="world-art">${worldArt(w.id)}<span>${w.tag}</span>${selected?`<i>${icon('check')}</i>`:!owned?`<i>${icon('lock')}</i>`:''}</div><div><h3>${w.name}</h3><p>${w.subtitle}</p><span class="vehicle-status">${selected?'SELECTED':'PREVIEW ? ' + `${icon('coin')} ${w.cost.toLocaleString()} + ${icon('ruby')} ${w.diamonds||0} · UNLOCK`}</span></div></button>`;}
    content+='</div>'+selectionFooter('worlds');
  }
  if(kind==='settings'){
    content=modalHeader('MAKE YOURSELF AT HOME','Your kind of play.','The little things that make every climb feel right.');
-   content+=`<div class="settings-list">${settingToggle('music','Background music','An upbeat arcade soundtrack for every climb.','music')}${settingToggle('sound','Sound effects','Hear every crash and landing.','sound')}${settingToggle('haptics','Touch feedback','Feel your timing with gentle vibrations.','target')}${settingToggle('reduceMotion','Reduce motion','Turn off camera shake and slow motion.','layers')}<div class="setting-row"><span class="setting-icon">${icon('sun')}</span><div><strong>Graphics quality</strong><p>Ultra uses sharper shadows and high resolution. Best on powerful devices.</p></div><select id="quality" aria-label="Graphics quality"><option value="auto" ${state.settings.quality==='auto'?'selected':''}>Auto</option><option value="high" ${state.settings.quality==='high'?'selected':''}>High</option><option value="ultra" ${state.settings.quality==='ultra'?'selected':''}>Ultra</option><option value="low" ${state.settings.quality==='low'?'selected':''}>Battery saver</option></select></div></div><div class="settings-note">${icon('info')} Progress is saved on this device.</div><button class="settings-howto-button" data-action="howto">${icon('info')}<span><strong>How to play</strong><small>Learn the controls and stacking basics.</small></span>${icon('arrow')}</button><button class="reset-game-button" data-action="reset-game">${icon('refresh')} Reset game</button>`;
+   content+=`<div class="settings-list">${settingToggle('music','Background music','An upbeat arcade soundtrack for every climb.','music')}${settingToggle('sound','Sound effects','Hear every crash and landing.','sound')}${settingToggle('haptics','Touch feedback','Feel your timing with gentle vibrations.','target')}${settingToggle('reduceMotion','Reduce motion','Turn off camera shake and slow motion.','layers')}<div class="setting-row"><span class="setting-icon">${icon('sun')}</span><div><strong>Graphics quality</strong><p>Ultra uses sharper shadows and high resolution. Best on powerful devices.</p></div><select id="quality" aria-label="Graphics quality"><option value="auto" ${state.settings.quality==='auto'?'selected':''}>Auto</option><option value="high" ${state.settings.quality==='high'?'selected':''}>High</option><option value="ultra" ${state.settings.quality==='ultra'?'selected':''}>Ultra</option><option value="low" ${state.settings.quality==='low'?'selected':''}>Battery saver</option></select></div></div><div class="settings-note">${icon('info')} Progress is saved on this device.</div><button class="settings-howto-button" data-action="howto">${icon('info')}<span><strong>How to play</strong><small>Learn the controls and stacking basics.</small></span>${icon('arrow')}</button><button class="privacy-link" data-action="privacy">Privacy policy</button><button class="reset-game-button" data-action="reset-game">${icon('refresh')} Reset game</button>`;
  }
  if(kind==='leaderboard'){
    content=modalHeader('A LITTLE FRIENDLY COMPETITION','Your best climbs.','Every personal best starts with one good drop.');
@@ -199,9 +206,26 @@ function openDialog(kind:string){
    content=modalHeader('CELEBRATE THE LITTLE THINGS','Milestones worth the climb.',`${state.achievements.length} of ${ACHIEVEMENTS.length} achievements discovered.`);content+='<div class="achievements-grid">';
    for(const a of ACHIEVEMENTS){const earned=state.achievements.includes(a.id);content+=`<div class="achievement-card ${earned?'earned':''}"><span class="achievement-icon">${icon(a.icon)}</span><div><h3>${a.name}</h3><p>${a.description}</p><small>${earned?'UNLOCKED':'KEEP CLIMBING'}</small></div>${earned?icon('check'):icon('lock')}</div>`;}content+='</div>';
  }
- if(kind==='howto')content=modalHeader('SIMPLE TO LEARN. SATISFYING TO MASTER.','Find your rhythm.','The best towers are built one moment at a time.')+`<div class="howto-steps"><div><b>01</b><h3>Watch the ride.</h3><p>Your next vehicle moves above the tower. Wait until it lines up with the vehicle below.</p></div><div><b>02</b><h3>Make the drop.</h3><p>Tap the scene or press Space. Gravity takes it from there.</p></div><div><b>03</b><h3>Keep your balance.</h3><p>Center your landing for 3 coins instead of 1. Chain perfects for up to 5× points. Off-center towers can topple.</p></div></div><button class="primary-button wide" data-action="play">Ready when you are ${icon('arrow')}</button>`;
+ if(kind==='howto'){
+   content=modalHeader('STACK VEHICLES','How to play','Build the tallest tower you can. A missed drop or a toppled stack ends the run.')+`
+     <div class="howto-steps">
+       <div><b>01</b><h3>Line up the arrows.</h3><p>Watch the gold arrows under the moving vehicle. Aim for the middle of the roof directly below.</p></div>
+       <div><b>02</b><h3>Tap to drop.</h3><p>Tap the play area or press Space to release the vehicle. Centered landings keep the tower steady.</p></div>
+       <div><b>03</b><h3>Chain perfect landings.</h3><p>A perfect drop earns 3 coins. Consecutive perfects multiply your points up to 5×. Every third vehicle is gold: land it for a diamond.</p></div>
+     </div>
+     <button class="primary-button wide" data-action="play">Let’s play ${icon('arrow')}</button>`;
+ }
  if(kind==='pause'){
    game?.pause();content=modalHeader('TAKE A BREATH','The view can wait.','Your tower will be right here when you’re ready.')+`<div class="pause-actions"><button class="primary-button wide" data-action="resume">${icon('play')} Keep climbing</button><button class="secondary-button wide" data-action="restart">${icon('refresh')} Start a new run</button><button class="text-button home-button" data-action="end-home">${icon('home')} Back to home</button></div>`;
+ }
+ if(kind==='privacy'){
+   const policy=new DOMParser().parseFromString(privacyDocument,'text/html');
+   const article=policy.querySelector('main')!;
+   const updated=article.querySelector('small')!.textContent || '';
+   article.querySelector('header')?.remove();
+   article.querySelectorAll('a').forEach(link=>{link.target='_blank';link.rel='noopener noreferrer';});
+   content=modalHeader('SETTINGS','Privacy policy',updated)+
+     `<article class="privacy-content" tabindex="0" aria-label="Privacy policy details">${article.innerHTML}</article>`;
  }
  if(kind==='result')content=resultContent();
  $('modal-content').innerHTML=content;modal.className=`modal ${kind==='pause'||kind==='result'?'compact-modal':''}`;modal.dataset.screen=kind;layoutDialog(page);if(!modal.open)modal.showModal();
@@ -220,8 +244,10 @@ function openDialog(kind:string){
 function selectionFooter(kind:'vehicles'|'worlds'){
  const world=kind==='worlds',choice=world?WORLDS.find(w=>w.id===pendingWorld)!:VEHICLES.find(v=>v.id===pendingVehicle)!;
  const owned=world?state.unlockedWorlds.includes(choice.id):state.unlocked.includes(choice.id);
- const shortfall=Math.max(0,choice.cost-state.coins),canUnlock=owned||shortfall===0;
- return `<div class="selection-footer"><p id="selection-hint" class="${!owned&&shortfall>0?'selection-error':''}" ${owned?'hidden':''}>${owned?'':shortfall>0?`${shortfall} more coins needed to unlock ${choice.name}.`:`Unlock ${choice.name} when you tap Done.`}</p><div class="selection-actions"><button class="selection-cancel" data-action="close">Cancel</button><button class="primary-button selection-done" data-action="selection-done" ${canUnlock?'':'disabled'}>${owned?'Done':canUnlock?'Unlock & select':`${shortfall} coins needed`}</button></div></div>`;
+ const coinShortfall=Math.max(0,choice.cost-state.coins),diamondShortfall=Math.max(0,(choice.diamonds||0)-state.rubies);
+ const canUnlock=owned||(coinShortfall===0&&diamondShortfall===0);
+ const requirement=[coinShortfall? `${coinShortfall.toLocaleString()} more coins`:'',diamondShortfall?`${diamondShortfall} more diamonds`:''].filter(Boolean).join(' and ');
+ return `<div class="selection-footer"><p id="selection-hint" class="${!owned&&!canUnlock?'selection-error':''}" ${!owned&&!canUnlock?'':'hidden'}>${requirement}</p><div class="selection-actions"><button class="selection-cancel" data-action="close">Cancel</button><button class="primary-button selection-done" data-action="selection-done" ${canUnlock?'':'disabled'}>${owned?'Done':'Unlock'}</button></div></div>`;
 }
 function layoutDialog(page=0){
  const focusAction=(document.activeElement as HTMLElement|null)?.dataset.action;
@@ -261,7 +287,7 @@ function reviveButton(){
 
 function watchLocalDemo(label=`${adsWatched+1} OF ${revivesUsed+1}`){
  const content=$('modal-content');
- content.innerHTML=`<div class="revive-demo"><span class="eyebrow">DEMO AD &middot; ${label}</span><img src="/icons/icon-192.png" alt=""><h2>Stack Vechiles</h2><p>Build your tower. Beat your best.</p><button class="secondary-button wide" id="skip-demo">Skip ad</button><small id="demo-time"></small></div>`;
+ content.innerHTML=`<div class="revive-demo"><span class="eyebrow">DEMO AD &middot; ${label}</span><img src="/icons/icon-192.png" alt=""><h2>Stack Vehicles</h2><p>Build your tower. Beat your best.</p><button class="secondary-button wide" id="skip-demo">Skip ad</button><small id="demo-time"></small></div>`;
  return new Promise<boolean>(resolve=>{
    let remaining=4000,last=performance.now();
    const clock=$('demo-time');
@@ -286,9 +312,12 @@ async function attemptRevive(){
    if(adsWatched===revivesUsed+1&&game.revive()){
      revivesUsed++;adsWatched=0;reviveStatus='';runRecorded=false;
      $('height').textContent=game.top.toFixed(1);$('landing-feedback').classList.remove('show');
-     closeDialog(false);return;
+     watchingReward=false;
+     closeDialog(false);
+     toast('Reward granted! Stack restored.');
+     return;
    }
-   reviveStatus=earned?`${adsWatched} of ${revivesUsed+1} ads complete. Watch the next ad to continue.`:'Finish the ad to earn revive credit.';
+   reviveStatus=earned?`Reward granted! ${adsWatched} of ${revivesUsed+1} ads complete. Watch the next ad to continue.`:'Finish the ad to earn revive credit.';
  }catch{
    reviveStatus='Ad unavailable. Try again in a moment.';
  }finally{
@@ -297,7 +326,7 @@ async function attemptRevive(){
  }
 }
 function resultContent(){const isBest=game&&game.score>0&&game.score>runPreviousBest;return modalHeader(isBest?'A NEW PERSONAL BEST':'EVERY DROP IS A NEW BEGINNING',isBest?'That’s a new high.':'What a climb.',isBest?'Take a moment. You’ve earned the view.':'A little higher next time? You’ve got this.')+`<div class="result-trophy">${icon(isBest?'trophy':'layers')}</div><div class="result-score"><small>YOUR SCORE</small><strong>${game?.score.toLocaleString()||0}</strong></div><div class="result-stats"><div><strong>${game?.stacks||0}</strong><span>VEHICLES</span></div><div><strong>${(game?.top||0).toFixed(1)} m</strong><span>HEIGHT</span></div><div><strong>+${game?.coins||0}</strong><span>COINS EARNED</span></div></div><div class="result-actions">${reviveButton()}<button class="secondary-button wide" data-action="play">${icon('refresh')} One more climb ${icon('arrow')}</button><button class="text-button home-button" data-action="home">${icon('home')} Back to home</button></div>`;}
-function closeDialog(resume=true){if(watchingReward)return;if(modal.open)modal.close();game?.setOverlayOpen(false);if(resume&&dialogKind==='pause')game?.resume();dialogKind='';dialogPage=0;}
+function closeDialog(resume=true){if(watchingReward)return;if(dialogKind==='privacy'&&resume){openDialog('settings');modal.querySelector<HTMLButtonElement>('.privacy-link')?.focus();return;}if(modal.open)modal.close();game?.setOverlayOpen(false);if(resume&&dialogKind==='pause')game?.resume();dialogKind='';dialogPage=0;}
 function saveRun(){if(runRecorded||!game)return;recordRun(state,{runId,score:game.score,stacks:game.stacks,height:game.stacks?game.top:0,world:state.selectedWorld,combo:sessionBestCombo});runRecorded=true;persist();renderState();}
 function handleAction(action:string,id?:string){
  if(!bootReady||watchingReward||interstitials.busy||selectionUpdatePending)return;
@@ -308,7 +337,7 @@ function handleAction(action:string,id?:string){
  else if(action==='revive')void attemptRevive();
  else if(action==='page-prev'||action==='page-next')layoutDialog(dialogPage+(action==='page-next'?1:-1));
  else if(action==='home')home();
- else if(['vehicles','worlds','garage','leaderboard','settings','achievements','howto','pause'].includes(action))openDialog(action);
+ else if(['vehicles','worlds','garage','leaderboard','settings','privacy','achievements','howto','pause'].includes(action))openDialog(action);
  else if(action==='close'){if(dialogKind==='result')home();else closeDialog();}
  else if(action==='resume')closeDialog();
  else if(action==='end-home'){saveRun();home();}
@@ -318,15 +347,13 @@ function handleAction(action:string,id?:string){
  else if(action==='selection-done'){
    if(dialogKind==='worlds'){
      const choice=WORLDS.find(w=>w.id===pendingWorld)!;
-     if(!unlockWorld(state,choice.id)){$('selection-hint').textContent=`You need ${choice.cost-state.coins} more coins to unlock ${choice.name}.`; $('selection-hint').hidden=false;$('selection-hint').classList.add('selection-error');return;}
-     state.selectedWorld=choice.id;persist();renderState();closeDialog();toast(`Loading ${choice.name}…`);
-     // Let the selection close and paint its feedback before constructing a
-     // newly selected procedural world. Returning to a recent world reuses its cache.
+     if(!state.unlockedWorlds.includes(choice.id)&&!unlockWorld(state,choice.id))return;
+     state.selectedWorld=choice.id;persist();renderState();closeDialog();
      selectionUpdatePending=true;window.setTimeout(()=>{game?.changeWorld(choice.id as WorldId);selectionUpdatePending=false;},32);return;
    }else{
      const choice=VEHICLES.find(v=>v.id===pendingVehicle)!;
-     if(!unlockVehicle(state,choice.id)){$('selection-hint').textContent=`You need ${choice.cost-state.coins} more coins to unlock ${choice.name}.`; $('selection-hint').hidden=false;$('selection-hint').classList.add('selection-error');return;}
-     state.selectedVehicle=choice.id;persist();renderState();closeDialog();toast(`Updating ${choice.name}…`);
+     if(!state.unlocked.includes(choice.id)&&!unlockVehicle(state,choice.id))return;
+     state.selectedVehicle=choice.id;persist();renderState();closeDialog();
      selectionUpdatePending=true;window.setTimeout(()=>{game?.setVehicles(choice.id,state.unlocked);selectionUpdatePending=false;},32);return;
    }
    persist();renderState();closeDialog();

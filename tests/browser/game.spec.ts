@@ -31,14 +31,14 @@ test('home, selectors, six live worlds and preferences persist without rendering
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
  await page.addInitScript(()=>{if(!localStorage.getItem('stackline.progress.v1'))localStorage.setItem('stackline.progress.v1',JSON.stringify({version:1,coins:2000,settings:{quality:'low',sound:false}}));});
  await ready(page);await expect(page.locator('.play-button')).toBeVisible();await expect(page.locator('h1')).toHaveCount(0);
- await expect(page).toHaveTitle(/Stack Vechiles/);await expect(page.locator('.brand-name')).toHaveText('Stack Vechiles');
+ await expect(page).toHaveTitle(/Stack Vehicles/);await expect(page.locator('.brand-name')).toHaveText('Stack Vehicles');
  expect(await page.locator('.brand-mark img').evaluate((img:HTMLImageElement)=>img.complete&&img.naturalWidth===192)).toBe(true);
- const manifest=await (await page.request.get('/manifest.webmanifest')).json();expect(manifest.name).toBe('Stack Vechiles');
+ const manifest=await (await page.request.get('/manifest.webmanifest')).json();expect(manifest.name).toBe('Stack Vehicles');
  for(const entry of manifest.icons)expect((await page.request.get(entry.src)).status()).toBe(200);
  await page.locator('[data-action="vehicles"]').click();await choose(page,'truck');await expect(page.locator('[data-id="truck"]')).toHaveAttribute('aria-pressed','true');await page.getByRole('button',{name:'Done',exact:true}).click();
  await page.locator('.selection-row[data-action="worlds"]').click();
  for(const world of ['city','space','snow','desert','beach','forest']){
-  await choose(page,world);await page.getByRole('button',{name:'Done',exact:true}).click();expect((await snapshot(page)).world).toBe(world);await page.locator('.selection-row[data-action="worlds"]').click();
+  await choose(page,world);await page.locator('.selection-done').click();expect((await snapshot(page)).world).toBe(world);await page.locator('.selection-row[data-action="worlds"]').click();
  }
  await choose(page,'beach');await page.getByRole('button',{name:'Done',exact:true}).click();await page.reload();await page.waitForFunction(()=>!!(window as any).stackline);
  expect((await snapshot(page)).vehicle).toBe('truck');expect((await snapshot(page)).world).toBe('beach');

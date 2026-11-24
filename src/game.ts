@@ -18,7 +18,7 @@ type Mode='home'|'playing'|'paused'|'ended';
 export class StackingGame {
   scene=new THREE.Scene(); camera=new THREE.PerspectiveCamera(39,1,.1,250);renderer:THREE.WebGLRenderer;
   scenery:Scenery; audio=new GameAudio();mode:Mode='home';selectedVehicle='mixed';unlocked:VehicleId[]=['car','suv','truck'];worldId:WorldId='forest';
-  items:Item[]=[];display=new THREE.Group();world?:CANNON.World;held?:THREE.Group;heldId:VehicleId='car';falling?:Item;guide?:THREE.Line;
+  items:Item[]=[];display=new THREE.Group();world?:CANNON.World;held?:THREE.Group;heldId:VehicleId='car';falling?:Item;guide?:THREE.Mesh;
   score=0;stacks=0;combo=0;coins=0;top=.49;stability=100;phase=0;elapsed=0;settled=0;contact=false;spawnTimer=0;slow=0;shake=0;lookY=4.2;quality='auto';reduceMotion=false;
   groundContact=false;lastImpactSpeed=0;private impactGate=new ImpactGate();
   private damageGate=new DamageGate();private glassFragments=new GlassFragments(this.scene);
@@ -178,13 +178,12 @@ export class StackingGame {
       if(this.mode==='playing'){this.groundContact=true;this.end();}
     });
     this.top=.49;
-    for(const [index,id] of vehicles.entries()){
+    for(const id of vehicles){
       const item=this.makeItem(id,0,this.top);
-      if(index===0){
-        item.body.type=CANNON.Body.STATIC;item.body.mass=0;item.body.updateMassProperties();
-      }else{
-        item.body.sleep();
-      }
+      // The starting vehicle and all restored vehicles form a fixed foundation.
+      item.body.type=CANNON.Body.STATIC;
+      item.body.mass=0;
+      item.body.updateMassProperties();
       this.world.addBody(item.body);this.scene.add(item.mesh);this.items.push(item);
       this.top+=item.height;
     }
@@ -225,7 +224,19 @@ export class StackingGame {
   }
   private spawn(){if(this.mode!=='playing')return;const stackNumber=this.stacks+1,bonus=stackNumber>=3&&stackNumber%3===0;this.heldId=bonus?'gold':this.pick();this.held=createVehicle(this.heldId);this.held.position.set(-3,this.top+3.1,0);this.scene.add(this.held);this.phase=-Math.PI/2;this.elapsed=0;this.settled=0;this.contact=false;
     if(bonus){this.addBonusAura();this.burstConfetti(this.held.position);}
-    this.guide=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3(0,-3,0)]),new THREE.LineDashedMaterial({color:0xf1e5ad,transparent:true,opacity:.55,dashSize:.12,gapSize:.13}));this.guide.computeLineDistances();this.scene.add(this.guide);
+    const arrows:THREE.Shape[]=[];
+    for(let i=0;i<3;i++){
+      const y=-1.06-i*.28;
+      const arrow=new THREE.Shape();
+      arrow.moveTo(-.21,y);arrow.lineTo(0,y-.17);arrow.lineTo(.21,y);
+      arrow.lineTo(.21,y-.09);arrow.lineTo(0,y-.26);arrow.lineTo(-.21,y-.09);arrow.closePath();
+      arrows.push(arrow);
+    }
+    this.guide=new THREE.Mesh(new THREE.ShapeGeometry(arrows),new THREE.MeshBasicMaterial({
+      color:0xffcf61,side:THREE.DoubleSide,toneMapped:false,
+    }));
+    this.guide.rotation.y=Math.atan2(.46,.89);
+    this.scene.add(this.guide);
   }
   private addBonusAura(){
     if(!this.held)return;
@@ -312,8 +323,8 @@ export class StackingGame {
     const narrow=this.camera.aspect<.85;
     // Bring the home vehicle showcase closer so its paint, glazing and wheel
     // detailing remain legible in the tall mobile card. Keep gameplay framing.
-    const distance=playing?(narrow?18:16):(narrow?15:13.2);
-    const position=this.cameraPosition.set(center+distance*.62,this.lookY+(playing?5:3.4),distance*.77);
+    const distance=playing?(narrow?18:15):(narrow?14:11.8);
+    const position=this.cameraPosition.set(center+distance*.46,this.lookY+(playing?4:2.55),distance*.89);
     if(this.shake>0){this.shake=Math.max(0,this.shake-visualDt*.32);position.x+=(Math.random()-.5)*this.shake;position.y+=(Math.random()-.5)*this.shake;}
     this.camera.position.copy(position);this.camera.lookAt(this.targetLook);
     this.scenery.update(visualDt,playing?this.lookY:0);
